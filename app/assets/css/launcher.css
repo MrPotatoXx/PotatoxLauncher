@@ -307,6 +307,19 @@ body, button {
     text-shadow: rgba(255, 255, 255, 0.75) 0px 0px 20px
 }
 
+/* Aviso de marca de Minecraft. */
+#welcomeDisclaimer {
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: #b9a29b;
+    opacity: 0.8;
+}
+
 /* Login button styles. */
 #welcomeButton {
     background: none;
@@ -2212,6 +2225,13 @@ input:checked + .toggleSwitchSlider:before {
     display: flex;
     padding: 0px 15px;
     margin-bottom: 5px;
+}
+#settingsAboutDisclaimer {
+    display: block;
+    padding: 5px 20px 10px 20px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: #b9a29b;
 }
 .settingsAboutButton {
     background: none;

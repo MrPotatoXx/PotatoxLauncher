@@ -102,7 +102,7 @@ La distribución (`distribution.json`) se genera en el servidor con [Nebula][neb
 
 Potatox Launcher es un fork de [Helios Launcher](https://github.com/dscalzi/HeliosLauncher), de Daniel Scalzi, bajo licencia [MIT](LICENSE.txt). Gracias por hacerlo libre.
 
-No está afiliado a Mojang ni a Microsoft.
+**NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG NI MICROSOFT.**
 
 [nodejs]: https://nodejs.org/ 'Node.js'
 [nebula]: https://github.com/dscalzi/Nebula 'dscalzi/Nebula'

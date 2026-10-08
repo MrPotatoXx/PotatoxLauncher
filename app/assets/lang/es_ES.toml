@@ -1,3 +1,6 @@
+[ejs.app]
+disclaimer = "NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG NI MICROSOFT."
+
 [ejs.landing]
 updateAvailableTooltip = "Actualización disponible"
 usernamePlaceholder = "Usuario"
@@ -32,7 +35,7 @@ loginButtonText = "ENTRAR"
 loginNeedAccountLink = "https://minecraft.net/store/minecraft-java-edition/"
 loginNeedAccountText = "¿No tienes cuenta?"
 loginPasswordDisclaimer1 = "Tu contraseña se envía directamente a Mojang y nunca se guarda."
-loginPasswordDisclaimer2 = "{appName} no está afiliado a Mojang AB."
+loginPasswordDisclaimer2 = "NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG NI MICROSOFT."
 
 [ejs.loginOptions]
 loginOptionsTitle = "Opciones de inicio de sesión"
