@@ -445,6 +445,141 @@ const GAME_JOINED_REGEX = /\[.+\]: Sound engine started/
 const GAME_LAUNCH_REGEX = /^\[.+\]: (?:MinecraftForge .+ Initialized|ModLauncher .+ starting: .+|Loading Minecraft .+ with Fabric Loader .+)$/
 const MIN_LINGER = 5000
 
+/**
+ * Genera en el PC del jugador los jars de cliente que Forge busca en libraries/
+ * (client srg, slim y extra de Minecraft, y forge client) corriendo el instalador
+ * oficial de Forge. Asi el distro no tiene que incluir codigo de Mojang.
+ *
+ * Solo aplica a servidores con ForgeHosted y Minecraft 1.13 o superior.
+ *
+ * @param {Object} serv El servidor seleccionado (HeliosServer).
+ * @param {Object} modLoaderData El version manifest de Forge.
+ */
+async function ensureForgeInstalled(serv, modLoaderData) {
+    const fs = require('fs-extra')
+    const os = require('os')
+    const child_process = require('child_process')
+    const loggerForge = LoggerUtil.getLogger('ForgeInstaller')
+
+    const forgeModule = serv.modules.find(m => m.rawModule.type === Type.ForgeHosted)
+    if(forgeModule == null) {
+        return
+    }
+    const mcVersion = serv.rawServer.minecraftVersion
+    const [mcMajor, mcMinor] = mcVersion.split('.').map(Number)
+    if(mcMajor < 1 || (mcMajor === 1 && mcMinor < 13)) {
+        return
+    }
+
+    const displayableError = (message) => {
+        const err = new Error(message)
+        err.displayable = message
+        return err
+    }
+
+    const gameArgs = (modLoaderData.arguments && modLoaderData.arguments.game) || []
+    const argValue = (name) => {
+        const i = gameArgs.indexOf(name)
+        return i > -1 ? gameArgs[i + 1] : null
+    }
+    const mcpVersion = argValue('--fml.mcpVersion')
+    const moduleVersion = forgeModule.getMavenComponents().version
+    const forgeVersion = moduleVersion.startsWith(`${mcVersion}-`)
+        ? moduleVersion.substring(mcVersion.length + 1)
+        : argValue('--fml.forgeVersion')
+    if(mcpVersion == null || forgeVersion == null) {
+        throw displayableError(Lang.queryJS('landing.forge.versionUnknown'))
+    }
+
+    const commonDir = ConfigManager.getCommonDirectory()
+    const libDir = path.join(commonDir, 'libraries')
+    const mcpId = `${mcVersion}-${mcpVersion}`
+    const forgeId = `${mcVersion}-${forgeVersion}`
+    const requiredFiles = [
+        path.join('net', 'minecraft', 'client', mcpId, `client-${mcpId}-srg.jar`),
+        path.join('net', 'minecraft', 'client', mcpId, `client-${mcpId}-slim.jar`),
+        path.join('net', 'minecraft', 'client', mcpId, `client-${mcpId}-extra.jar`),
+        path.join('net', 'minecraftforge', 'forge', forgeId, `forge-${forgeId}-client.jar`)
+    ]
+    const findMissing = async () => {
+        const exists = await Promise.all(requiredFiles.map(f => fs.pathExists(path.join(libDir, f))))
+        return requiredFiles.filter((_, i) => !exists[i])
+    }
+
+    let missing = await findMissing()
+    if(missing.length === 0) {
+        loggerForge.info(`Forge ${forgeId} already installed.`)
+        return
+    }
+    loggerForge.info(`Missing Forge files, running installer for ${forgeId}:`, missing)
+
+    setLaunchDetails(Lang.queryJS('landing.forge.preparing'))
+    const start = Date.now()
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'potatox-forge-'))
+    const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${forgeId}/forge-${forgeId}-installer.jar`
+    const installerPath = path.join(tmpDir, `forge-${forgeId}-installer.jar`)
+
+    try {
+        try {
+            await downloadFile(installerUrl, installerPath)
+        } catch(err) {
+            loggerForge.error(`Failed to download ${installerUrl}`, err)
+            throw displayableError(Lang.queryJS('landing.forge.downloadFailed'))
+        }
+
+        // El instalador se niega a correr si no encuentra un perfil del launcher oficial.
+        const profilesPath = path.join(commonDir, 'launcher_profiles.json')
+        if(!await fs.pathExists(profilesPath)) {
+            await fs.writeJson(profilesPath, {})
+        }
+
+        // La salida completa (decenas de miles de lineas) va a un archivo; la consola solo muestra stderr
+        // y, si falla, las ultimas lineas.
+        const logPath = path.join(ConfigManager.getLauncherDirectory(), 'forge-installer.log')
+        const logStream = fs.createWriteStream(logPath)
+        let tail = []
+        const keepTail = (data) => {
+            tail = tail.concat(data.split(/\r?\n/).filter(l => l.length > 0)).slice(-40)
+        }
+
+        const javaExe = ConfigManager.getJavaExecutable(serv.rawServer.id)
+        loggerForge.info(`Running ${javaExe} -jar ${installerPath} --installClient ${commonDir}`)
+        loggerForge.info(`Installer output: ${logPath}`)
+        const exitCode = await new Promise((resolve, reject) => {
+            const child = child_process.spawn(javaExe, ['-jar', installerPath, '--installClient', commonDir], { cwd: tmpDir })
+            child.stdout.setEncoding('utf8')
+            child.stderr.setEncoding('utf8')
+            child.stdout.on('data', data => {
+                logStream.write(data)
+                keepTail(data)
+            })
+            child.stderr.on('data', data => {
+                logStream.write(data)
+                keepTail(data)
+                loggerForge.error(data.trim())
+            })
+            child.on('error', err => {
+                loggerForge.error(`Could not run ${javaExe}`, err)
+                reject(displayableError(Lang.queryJS('landing.forge.javaFailed')))
+            })
+            child.on('close', resolve)
+        }).finally(() => logStream.end())
+        if(exitCode !== 0) {
+            loggerForge.error(`Forge installer exited with code ${exitCode}. Last lines:\n${tail.join('\n')}`)
+            throw displayableError(Lang.queryJS('landing.forge.installerFailed', { code: exitCode }))
+        }
+    } finally {
+        await fs.remove(tmpDir)
+    }
+
+    missing = await findMissing()
+    if(missing.length > 0) {
+        loggerForge.error('Forge installer finished but files are still missing:', missing)
+        throw displayableError(Lang.queryJS('landing.forge.stillMissing', { files: missing.join('<br>') }))
+    }
+    loggerForge.info(`Forge ${forgeId} installed in ${((Date.now() - start) / 1000).toFixed(1)}s.`)
+}
+
 async function dlAsync(login = true) {
 
     // Login parameter is temporary for debug purposes. Allows testing the validation/downloads without
@@ -550,6 +685,15 @@ async function dlAsync(login = true) {
 
     const modLoaderData = await distributionIndexProcessor.loadModLoaderVersionJson(serv)
     const versionData = await mojangIndexProcessor.getVersionJson()
+
+    try {
+        await ensureForgeInstalled(serv, modLoaderData)
+    } catch(err) {
+        loggerLaunchSuite.error('Error while preparing Forge.', err)
+        showLaunchFailure(Lang.queryJS('landing.forge.failureTitle'), err.displayable || Lang.queryJS('landing.dlAsync.seeConsoleForDetails'))
+        return
+    }
+    setLaunchDetails(Lang.queryJS('landing.dlAsync.preparingToLaunch'))
 
     if(login) {
         const authUser = ConfigManager.getSelectedAccount()

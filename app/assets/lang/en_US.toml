@@ -210,6 +210,15 @@ launchWrapperNotDownloaded = "The main file, LaunchWrapper, failed to download p
 doneEnjoyServer = "Done. Enjoy the server!"
 checkConsoleForDetails = "Please check the console (CTRL + Shift + i) for more details."
 
+[js.landing.forge]
+preparing = "Preparing Forge (first time only)…"
+failureTitle = "Error While Preparing Forge"
+versionUnknown = "Could not determine which Forge version to install. See the console (CTRL + Shift + i) for more details."
+javaFailed = "Could not run Java to install Forge. Check the Java path in Settings → Java."
+downloadFailed = "Could not download the Forge installer. Check your internet connection and try again."
+installerFailed = "The Forge installer finished with an error (code {code}). See the console (CTRL + Shift + i) for more details."
+stillMissing = "The Forge installer finished, but these files are missing:<br><br>{files}"
+
 [js.landing.news]
 checking = "Checking for News"
 

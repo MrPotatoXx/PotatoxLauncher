@@ -210,6 +210,15 @@ launchWrapperNotDownloaded = "El archivo principal, LaunchWrapper, no se descarg
 doneEnjoyServer = "Listo. ¡Que lo disfrutes!"
 checkConsoleForDetails = "Revisa la consola (CTRL + Shift + i) para más detalles."
 
+[js.landing.forge]
+preparing = "Preparando Forge (solo la primera vez)…"
+failureTitle = "Error al preparar Forge"
+versionUnknown = "No se pudo saber qué versión de Forge instalar. Revisa la consola (CTRL + Shift + i) para más detalles."
+javaFailed = "No se pudo ejecutar Java para instalar Forge. Revisa la ruta de Java en Ajustes → Java."
+downloadFailed = "No se pudo descargar el instalador de Forge. Revisa tu conexión a internet e inténtalo de nuevo."
+installerFailed = "El instalador de Forge terminó con un error (código {code}). Revisa la consola (CTRL + Shift + i) para más detalles."
+stillMissing = "El instalador de Forge terminó, pero faltan estos archivos:<br><br>{files}"
+
 [js.landing.news]
 checking = "Buscando noticias"
 
