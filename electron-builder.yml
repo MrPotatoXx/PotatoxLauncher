@@ -49,3 +49,10 @@ linux:
 directories:
   buildResources: 'build'
   output: 'dist'
+
+# Releases en GitHub (también genera app-update.yml para el auto-updater)
+publish:
+  provider: github
+  owner: MrPotatoXx
+  repo: PotatoxLauncher
+  releaseType: release

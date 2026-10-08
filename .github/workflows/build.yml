@@ -1,17 +1,17 @@
 name: Build
 
-on: push
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     permissions:
       contents: write
-
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
 
     steps:
       - name: Check out Git repository
@@ -34,5 +34,5 @@ jobs:
       - name: Build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist
+        run: npm run dist:win -- --publish always
         shell: bash

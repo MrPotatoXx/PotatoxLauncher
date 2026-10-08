@@ -1,6 +1,6 @@
 {
   "name": "potatoxlauncher",
-  "version": "2.2.1",
+  "version": "1.0.0",
   "productName": "Potatox Launcher",
   "description": "Launcher de Minecraft para los servidores de Potatox. Instala y mantiene actualizados los modpacks automáticamente.",
   "author": "MrPotatoXx (https://github.com/MrPotatoXx)",
@@ -47,6 +47,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dscalzi/HeliosLauncher.git"
+    "url": "git+https://github.com/MrPotatoXx/PotatoxLauncher.git"
   }
 }
