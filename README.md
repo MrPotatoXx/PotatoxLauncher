@@ -10,6 +10,8 @@ Potatox Launcher es el launcher oficial de los servidores de Potatox. Inicias se
 
 Basado en [Helios Launcher](https://github.com/dscalzi/HeliosLauncher) (MIT).
 
+![Pantalla principal](docs/images/principal.jpg)
+
 > **Estado:** en desarrollo. Todavía no hay instaladores publicados: el inicio de sesión con Microsoft espera la aprobación de Mojang para el ID de la aplicación.
 
 ## Servidores
@@ -29,6 +31,10 @@ Los servidores tienen whitelist: son para la comunidad de Potatox. Más info en 
 * 🧩 **Mods opcionales y propios.** Activa o desactiva los opcionales del pack y agrega shaders o mods tuyos desde los ajustes.
 * 👥 **Estado del servidor.** Muestra los jugadores conectados del servidor elegido.
 * 🇪🇸 **En español.**
+
+| ![Bienvenida](docs/images/bienvenida.jpg) | ![Pantalla de carga](docs/images/carga.jpg) | ![Ajustes de mods](docs/images/mods.jpg) |
+| :---: | :---: | :---: |
+| Bienvenida | Pantalla de carga | Mods del modpack |
 
 ## Instalar
 
