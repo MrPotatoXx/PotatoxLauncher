@@ -1,8 +1,8 @@
-appId: 'helioslauncher'
-productName: 'Helios Launcher'
+appId: 'me.potatox.launcher'
+productName: 'Potatox Launcher'
 artifactName: '${productName}-setup-${version}.${ext}'
 
-copyright: 'Copyright © 2018-2026 Daniel Scalzi'
+copyright: 'Copyright © 2026 Potatox. Basado en Helios Launcher, Copyright © 2018-2026 Daniel Scalzi (MIT)'
 
 asar: true
 compression: 'maximum'
@@ -39,10 +39,10 @@ mac:
 # Linux Configuration
 linux: 
   target: 'AppImage'
-  maintainer: 'Daniel Scalzi'
-  vendor: 'Daniel Scalzi'
-  synopsis: 'Modded Minecraft Launcher'
-  description: 'Custom launcher which allows users to join modded servers. All mods, configurations, and updates are handled automatically.'
+  maintainer: 'MrPotatoXx'
+  vendor: 'Potatox'
+  synopsis: 'Launcher de Minecraft para los servidores de Potatox'
+  description: 'Launcher de los servidores de Potatox. Instala Java, Minecraft, Forge y los mods del modpack, y los mantiene sincronizados con el servidor.'
   category: 'Game'
 
 
