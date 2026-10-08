@@ -183,7 +183,7 @@ javaDownloadPrepare = "Preparando la descarga de Java.."
 javaDownloadFailureTitle = "Error al descargar Java"
 javaDownloadFailureText = "Revisa la consola (CTRL + Shift + i) para más detalles."
 javaRequired = "Se necesita Java<br>para jugar"
-javaRequiredMessage = 'Para iniciar se necesita una instalación válida de Java {major} x64.<br><br>Consulta la <a href="https://github.com/dscalzi/HeliosLauncher/wiki/Java-Management#manually-installing-a-valid-version-of-java">guía de Java</a> (en inglés) para instalarlo a mano.'
+javaRequiredMessage = 'Para iniciar se necesita una instalación válida de Java {major} x64.<br><br>Puedes descargarlo e instalarlo a mano desde <a href="https://adoptium.net/temurin/releases/">Adoptium Temurin</a>.'
 javaRequiredDismiss = "Entendido"
 javaRequiredCancel = "Volver"
 
