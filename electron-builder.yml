@@ -25,6 +25,8 @@ nsis:
   perMachine: false
   allowElevation: true
   allowToChangeInstallationDirectory: true
+  # Nombre fijo para que la web enlace a /releases/latest/download/Potatox-Launcher-setup.exe
+  artifactName: 'Potatox-Launcher-setup.${ext}'
 
 # macOS Configuration
 mac:

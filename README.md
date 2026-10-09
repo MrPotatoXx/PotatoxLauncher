@@ -42,7 +42,7 @@ Cuando haya versiones publicadas, estarán en [GitHub Releases](https://github.c
 
 | Plataforma | Archivo |
 | ---------- | ------- |
-| Windows x64 | `Potatox-Launcher-setup-VERSION.exe` |
+| Windows x64 | [`Potatox-Launcher-setup.exe`](https://github.com/MrPotatoXx/PotatoxLauncher/releases/latest/download/Potatox-Launcher-setup.exe) |
 
 El instalador no está firmado, así que Windows mostrará *"Windows protegió su PC"*. Para seguir: **Más información → Ejecutar de todas formas**.
 
