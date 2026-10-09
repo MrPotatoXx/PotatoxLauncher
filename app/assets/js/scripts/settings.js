@@ -1565,6 +1565,198 @@ function prepareUpdateTab(data = null){
   * 
   * @param {boolean} first Whether or not it is the first load.
   */
+/**
+ * Minecraft Settings Import
+ */
+
+let mcImportSourceDir = null
+
+/**
+ * Escape text before putting it inside overlay HTML (paths can contain anything).
+ *
+ * @param {string} text The text to escape.
+ * @returns {string} The escaped text.
+ */
+function escapeImportHtml(text){
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/**
+ * Build the HTML summary shown after an import.
+ *
+ * @param {Array<Object>} results The results from MinecraftImport.importSettings.
+ * @param {string} sourceDir Where the settings were imported from.
+ * @param {string} serverName The name of the server whose instance received them.
+ * @returns {string} The summary HTML.
+ */
+function buildMinecraftImportSummary(results, sourceDir, serverName){
+    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
+    const lines = results.map(r => {
+        let detail
+        if(r.status === 'missing'){
+            detail = q('resultMissing')
+        } else if(r.status === 'error'){
+            detail = q('resultError', { error: escapeImportHtml(r.error) })
+        } else if(r.item === 'config'){
+            detail = q('resultConfig', { files: r.files, skipped: r.skipped })
+        } else if(r.item === 'journeymap'){
+            detail = q('resultFiles', { files: r.files })
+        } else {
+            detail = q('resultImported')
+        }
+        if(r.backup){
+            detail += `<br><span class="mcImportBackup">${q('resultBackup', { backup: escapeImportHtml(path.basename(r.backup)) })}</span>`
+        }
+        return `<li><strong>${q(`items.${r.item}`)}</strong>: ${detail}</li>`
+    })
+    return `${q('summaryFrom', { source: escapeImportHtml(sourceDir) })}<br>${q('summaryTo', { server: escapeImportHtml(serverName) })}`
+        + `<ul class="mcImportSummaryList">${lines.join('')}</ul>`
+}
+
+/**
+ * Show a simple overlay with a single button.
+ *
+ * @param {string} title The overlay title.
+ * @param {string} description The overlay description (HTML).
+ */
+function showMinecraftImportMessage(title, description){
+    setOverlayContent(title, description, Lang.queryJS('settings.minecraftImport.okButton'))
+    setOverlayHandler(null)
+    toggleOverlay(true)
+}
+
+/**
+ * @returns {Promise<{name: string, mcVersion: string, instanceDir: string}>} The selected server's instance.
+ */
+async function getMinecraftImportTarget(){
+    const serverId = ConfigManager.getSelectedServer()
+    const serv = (await DistroAPI.getDistribution()).getServerById(serverId)
+    return {
+        name: serv != null ? serv.rawServer.name : serverId,
+        mcVersion: serv != null ? serv.rawServer.minecraftVersion : '',
+        instanceDir: path.join(ConfigManager.getInstanceDirectory(), serverId)
+    }
+}
+
+/**
+ * Show the source folder and what was found in it.
+ *
+ * @returns {Promise<Object>} The result of MinecraftImport.inspectSource.
+ */
+async function refreshMinecraftImportSource(){
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
+    if(mcImportSourceDir == null){
+        mcImportSourceDir = MinecraftImport.getDefaultSourceDir()
+    }
+    document.getElementById('settingsImportSourceVal').value = mcImportSourceDir
+
+    const info = await MinecraftImport.inspectSource(mcImportSourceDir)
+    for(const item of MinecraftImport.ITEMS){
+        const status = document.getElementById(`settingsImportStatus_${item}`)
+        status.innerHTML = info.found[item] ? q('found') : q('notFound')
+        status.toggleAttribute('found', info.found[item])
+    }
+
+    const note = document.getElementById('settingsImportSourceNote')
+    if(!info.exists){
+        note.innerHTML = q('sourceMissing')
+    } else if(!MinecraftImport.ITEMS.some(item => info.found[item])){
+        note.innerHTML = q('nothingFound')
+    } else if(info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
+        const target = await getMinecraftImportTarget()
+        note.innerHTML = q('newerVersionNote', { mc: target.mcVersion })
+    } else {
+        note.innerHTML = ''
+    }
+    return info
+}
+
+/**
+ * Import the selected settings into the selected server's instance.
+ */
+async function runMinecraftImportFromSettings(){
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
+    const button = document.getElementById('settingsImportButton')
+    const resetButton = () => {
+        button.disabled = false
+        button.innerHTML = Lang.queryEJS('settings.importButton')
+    }
+
+    const selection = {}
+    for(const item of MinecraftImport.ITEMS){
+        selection[item] = document.getElementById(`settingsImportCheck_${item}`).checked
+    }
+    if(!MinecraftImport.ITEMS.some(item => selection[item])){
+        showMinecraftImportMessage(q('noSelectionTitle'), q('noSelectionDesc'))
+        return
+    }
+
+    const info = await refreshMinecraftImportSource()
+    if(!MinecraftImport.ITEMS.some(item => selection[item] && info.found[item])){
+        showMinecraftImportMessage(q('nothingToImportTitle'), q('nothingToImportDesc'))
+        return
+    }
+
+    const target = await getMinecraftImportTarget()
+    button.disabled = true
+    button.innerHTML = q('checking')
+    const launcherProcRunning = typeof proc !== 'undefined' && proc != null && proc.exitCode == null
+    if(launcherProcRunning || await MinecraftImport.isGameRunning(target.instanceDir)){
+        resetButton()
+        showMinecraftImportMessage(q('gameRunningTitle'), q('gameRunningDesc', { server: escapeImportHtml(target.name) }))
+        return
+    }
+
+    const doImport = async () => {
+        button.disabled = true
+        button.innerHTML = q('importing')
+        try {
+            const results = await MinecraftImport.importSettings(mcImportSourceDir, target.instanceDir, selection)
+            showMinecraftImportMessage(q('summaryTitle'), buildMinecraftImportSummary(results, mcImportSourceDir, target.name))
+        } catch(err) {
+            showMinecraftImportMessage(q('errorTitle'), q('errorDesc', { error: escapeImportHtml(err.message) }))
+        } finally {
+            resetButton()
+        }
+    }
+
+    if(selection.options && info.found.options && info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
+        resetButton()
+        setOverlayContent(q('newerVersionTitle'), q('newerVersionDesc', { mc: target.mcVersion }), q('importAnyway'), q('cancel'))
+        setOverlayHandler(() => {
+            toggleOverlay(false)
+            doImport()
+        })
+        setDismissHandler(() => {
+            toggleOverlay(false)
+        })
+        toggleOverlay(true, true)
+        return
+    }
+    await doImport()
+}
+
+/**
+ * Prepare the Minecraft settings import section of the Minecraft tab.
+ */
+async function prepareMinecraftImport(){
+    document.getElementById('settingsImportSourceButton').onclick = async () => {
+        const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+            title: document.getElementById('settingsImportSourceButton').getAttribute('dialogTitle'),
+            defaultPath: mcImportSourceDir || undefined,
+            properties: ['openDirectory']
+        })
+        if(!res.canceled){
+            mcImportSourceDir = res.filePaths[0]
+            await refreshMinecraftImportSource()
+        }
+    }
+    document.getElementById('settingsImportButton').onclick = runMinecraftImportFromSettings
+    await refreshMinecraftImportSource()
+}
+
 async function prepareSettings(first = false) {
     if(first){
         setupSettingsTabs()
@@ -1577,6 +1769,7 @@ async function prepareSettings(first = false) {
     prepareAccountsTab()
     await prepareJavaTab()
     prepareAboutTab()
+    await prepareMinecraftImport()
 }
 
 // Prepare the settings UI on startup.

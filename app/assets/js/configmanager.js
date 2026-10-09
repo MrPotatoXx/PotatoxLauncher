@@ -99,7 +99,8 @@ const DEFAULT_CONFIG = {
     selectedAccount: null,
     authenticationDatabase: {},
     modConfigurations: [],
-    javaConfig: {}
+    javaConfig: {},
+    minecraftImportOffered: false
 }
 
 let config = null
@@ -769,6 +770,25 @@ exports.getLaunchDetached = function(def = false){
  */
 exports.setLaunchDetached = function(launchDetached){
     config.settings.game.launchDetached = launchDetached
+}
+
+/**
+ * Check if the launcher already offered to import the player's Minecraft settings
+ * on the first launch of a modpack.
+ *
+ * @returns {boolean} Whether or not the offer was already shown.
+ */
+exports.getMinecraftImportOffered = function(){
+    return config.minecraftImportOffered
+}
+
+/**
+ * Remember that the Minecraft settings import was already offered.
+ *
+ * @param {boolean} offered Whether or not the offer was shown.
+ */
+exports.setMinecraftImportOffered = function(offered){
+    config.minecraftImportOffered = offered
 }
 
 // Launcher Settings

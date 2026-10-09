@@ -580,6 +580,72 @@ async function ensureForgeInstalled(serv, modLoaderData) {
     loggerForge.info(`Forge ${forgeId} installed in ${((Date.now() - start) / 1000).toFixed(1)}s.`)
 }
 
+/**
+ * La primera vez que se juega un modpack, si la instancia todavía no tiene options.txt
+ * y el jugador tiene un Minecraft normal, ofrece traer sus teclas y ajustes.
+ * Se muestra una sola vez (queda guardado en la config del launcher).
+ *
+ * @param {Object} serv El servidor seleccionado (HeliosServer).
+ */
+async function offerMinecraftImport(serv) {
+    if(ConfigManager.getMinecraftImportOffered()) {
+        return
+    }
+    const fs = require('fs-extra')
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
+
+    const instanceDir = path.join(ConfigManager.getInstanceDirectory(), serv.rawServer.id)
+    const sourceDir = MinecraftImport.getDefaultSourceDir()
+    if(await fs.pathExists(path.join(instanceDir, 'options.txt')) || !await fs.pathExists(path.join(sourceDir, 'options.txt'))) {
+        return
+    }
+
+    ConfigManager.setMinecraftImportOffered(true)
+    ConfigManager.save()
+
+    const info = await MinecraftImport.inspectSource(sourceDir)
+    let description = q('firstRunDesc', { server: escapeImportHtml(serv.rawServer.name) })
+    if(info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION) {
+        description += `<br><br>${q('newerVersionNote', { mc: serv.rawServer.minecraftVersion })}`
+    }
+
+    const accepted = await new Promise(resolve => {
+        setOverlayContent(q('firstRunTitle'), description, q('firstRunImport'), q('firstRunLater'))
+        setOverlayHandler(() => {
+            toggleOverlay(false)
+            resolve(true)
+        })
+        setDismissHandler(() => {
+            toggleOverlay(false)
+            resolve(false)
+        })
+        toggleOverlay(true, true)
+    })
+    setOverlayHandler(null)
+    setDismissHandler(null)
+    if(!accepted) {
+        loggerLanding.info('Minecraft settings import declined.')
+        return
+    }
+
+    try {
+        const results = await MinecraftImport.importSettings(sourceDir, instanceDir, { options: true, servers: true, journeymap: true, config: false })
+        await new Promise(resolve => {
+            setOverlayContent(q('summaryTitle'), buildMinecraftImportSummary(results, sourceDir, serv.rawServer.name), q('continueButton'))
+            setOverlayHandler(() => {
+                toggleOverlay(false)
+                resolve()
+            })
+            toggleOverlay(true)
+        })
+        setOverlayHandler(null)
+    } catch(err) {
+        // Si falla la importación, el juego igual se lanza con los ajustes por defecto.
+        loggerLanding.error('Error while importing Minecraft settings.', err)
+    }
+}
+
 async function dlAsync(login = true) {
 
     // Login parameter is temporary for debug purposes. Allows testing the validation/downloads without
@@ -696,6 +762,8 @@ async function dlAsync(login = true) {
     setLaunchDetails(Lang.queryJS('landing.dlAsync.preparingToLaunch'))
 
     if(login) {
+        await offerMinecraftImport(serv)
+
         const authUser = ConfigManager.getSelectedAccount()
         loggerLaunchSuite.info(`Sending selected account (${authUser.displayName}) to ProcessBuilder.`)
         let pb = new ProcessBuilder(serv, versionData, modLoaderData, authUser, remote.app.getVersion())

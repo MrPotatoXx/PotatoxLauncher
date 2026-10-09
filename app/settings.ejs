@@ -116,6 +116,67 @@
                     </label>
                 </div>
             </div>
+            <div id="settingsImportContainer">
+                <span class="settingsFieldTitle" id="settingsImportHeader"><%- lang('settings.importHeader') %></span>
+                <span class="settingsFieldDesc"><%- lang('settings.importDesc') %></span>
+                <div id="settingsImportSource">
+                    <span class="settingsImportLabel"><%- lang('settings.importSourceTitle') %></span>
+                    <div id="settingsImportSourceActions">
+                        <input class="settingsFileSelVal" id="settingsImportSourceVal" type="text" disabled>
+                        <button id="settingsImportSourceButton" dialogTitle="<%- lang('settings.importSelectFolder') %>"><%- lang('settings.importChooseFolder') %></button>
+                    </div>
+                    <span id="settingsImportSourceNote"></span>
+                </div>
+                <div class="settingsFieldContainer">
+                    <div class="settingsFieldLeft">
+                        <span class="settingsFieldTitle"><%- lang('settings.import_optionsTitle') %></span>
+                        <span class="settingsFieldDesc"><%- lang('settings.import_optionsDesc') %> <span class="settingsImportStatus" id="settingsImportStatus_options"></span></span>
+                    </div>
+                    <div class="settingsFieldRight">
+                        <label class="toggleSwitch">
+                            <input type="checkbox" id="settingsImportCheck_options" checked>
+                            <span class="toggleSwitchSlider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settingsFieldContainer">
+                    <div class="settingsFieldLeft">
+                        <span class="settingsFieldTitle"><%- lang('settings.import_serversTitle') %></span>
+                        <span class="settingsFieldDesc"><%- lang('settings.import_serversDesc') %> <span class="settingsImportStatus" id="settingsImportStatus_servers"></span></span>
+                    </div>
+                    <div class="settingsFieldRight">
+                        <label class="toggleSwitch">
+                            <input type="checkbox" id="settingsImportCheck_servers" checked>
+                            <span class="toggleSwitchSlider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settingsFieldContainer">
+                    <div class="settingsFieldLeft">
+                        <span class="settingsFieldTitle"><%- lang('settings.import_journeymapTitle') %></span>
+                        <span class="settingsFieldDesc"><%- lang('settings.import_journeymapDesc') %> <span class="settingsImportStatus" id="settingsImportStatus_journeymap"></span></span>
+                    </div>
+                    <div class="settingsFieldRight">
+                        <label class="toggleSwitch">
+                            <input type="checkbox" id="settingsImportCheck_journeymap" checked>
+                            <span class="toggleSwitchSlider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settingsFieldContainer">
+                    <div class="settingsFieldLeft">
+                        <span class="settingsFieldTitle"><%- lang('settings.import_configTitle') %></span>
+                        <span class="settingsFieldDesc"><%- lang('settings.import_configDesc') %> <span class="settingsImportStatus" id="settingsImportStatus_config"></span></span>
+                    </div>
+                    <div class="settingsFieldRight">
+                        <label class="toggleSwitch">
+                            <input type="checkbox" id="settingsImportCheck_config">
+                            <span class="toggleSwitchSlider"></span>
+                        </label>
+                    </div>
+                </div>
+                <button id="settingsImportButton"><%- lang('settings.importButton') %></button>
+            </div>
         </div>
         <div id="settingsTabMods" class="settingsTab" style="display: none;">
             <div class="settingsTabHeader">

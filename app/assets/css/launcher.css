@@ -1497,6 +1497,99 @@ input:checked + .toggleSwitchSlider:before {
     color: lightgrey;
     width: 89%;
 }
+/* Importar ajustes de Minecraft (Ajustes > Minecraft). */
+#settingsImportContainer {
+    display: flex;
+    flex-direction: column;
+    width: 75%;
+    margin-top: 30px;
+    padding-bottom: 30px;
+}
+#settingsImportHeader {
+    font-size: 16px;
+}
+#settingsImportSource {
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.50);
+}
+.settingsImportLabel {
+    font-size: 12px;
+    color: lightgrey;
+    margin-bottom: 5px;
+}
+#settingsImportSourceActions {
+    display: flex;
+}
+#settingsImportSourceButton {
+    border: 0px;
+    border-radius: 0px 3px 3px 0px;
+    font-size: 12px;
+    padding: 0px 10px;
+    cursor: pointer;
+    background: rgba(126, 126, 126, 0.57);
+    transition: 0.25s ease;
+    white-space: nowrap;
+    outline: none;
+}
+#settingsImportSourceButton:hover,
+#settingsImportSourceButton:focus {
+    text-shadow: 0px 0px 20px white;
+}
+#settingsImportSourceNote {
+    font-size: 11px;
+    color: #e8b75a;
+    margin-top: 8px;
+}
+#settingsImportSourceNote:empty {
+    display: none;
+}
+#settingsImportContainer .settingsFieldContainer {
+    width: 100%;
+}
+.settingsImportStatus {
+    color: rgba(255, 255, 255, 0.5);
+}
+.settingsImportStatus[found] {
+    color: #e8b75a;
+}
+#settingsImportButton {
+    align-self: flex-start;
+    margin-top: 25px;
+    padding: 10px 20px;
+    background: rgba(255, 106, 43, 0.15);
+    border: 1px solid #ff6a2b;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    outline: none;
+    transition: 0.25s ease;
+}
+#settingsImportButton:hover,
+#settingsImportButton:focus {
+    background: rgba(255, 106, 43, 0.35);
+    text-shadow: 0px 0px 20px #ffb347;
+}
+#settingsImportButton:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.mcImportSummaryList {
+    text-align: left;
+    font-weight: normal;
+    margin: 15px 0px 0px 0px;
+    padding-left: 20px;
+}
+.mcImportSummaryList li {
+    margin-bottom: 6px;
+}
+.mcImportBackup {
+    font-size: 10px;
+    color: lightgrey;
+}
 .settingsFileSelDesc strong {
     font-family: 'Avenir Medium';
 }
