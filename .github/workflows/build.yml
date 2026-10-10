@@ -36,3 +36,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:win -- --publish always
         shell: bash
+
+      # Las notas se escriben en docs/release-notes.md y se muestran en el launcher (Acerca de y Actualizaciones).
+      - name: Release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "v$(node -p "require('./package.json').version")" --repo "$GITHUB_REPOSITORY" --notes-file docs/release-notes.md
+        shell: bash
