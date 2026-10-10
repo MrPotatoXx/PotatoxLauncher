@@ -2183,13 +2183,32 @@ function setSkinTabMessage(html){
 }
 
 /**
+ * Load skinview3d from its bundle, which already includes three.js.
+ *
+ * The package entry imports three/examples/..., and electron-builder leaves the
+ * examples folder of every dependency out of the installer. The bundle is UMD, but the
+ * package is marked as ES module, so it is compiled as CommonJS by hand.
+ *
+ * @returns {Object} The skinview3d module.
+ */
+function loadSkinview3d(){
+    const Module = require('module')
+    const file = require.resolve('skinview3d/bundles/skinview3d.bundle.js')
+    const bundle = new Module(file, module)
+    bundle.filename = file
+    bundle.paths = Module._nodeModulePaths(path.dirname(file))
+    bundle._compile(mcImportFs.readFileSync(file, 'utf8'), file)
+    return bundle.exports
+}
+
+/**
  * Create the 3D viewer the first time the tab is opened.
  */
 function ensureSkinViewer(){
     if(skinState.viewer != null){
         return
     }
-    const skinview3d = require('skinview3d')
+    const skinview3d = loadSkinview3d()
     const viewer = new skinview3d.SkinViewer({
         canvas: document.getElementById('settingsSkinCanvas'),
         width: 190,
