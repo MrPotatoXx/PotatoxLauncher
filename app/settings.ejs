@@ -7,6 +7,7 @@
             <div id="settingsNavItemsContainer">
                 <div id="settingsNavItemsContent">
                     <button class="settingsNavItem" rSc="settingsTabAccount" id="settingsNavAccount" selected><%- lang('settings.navAccount') %></button>
+                    <button class="settingsNavItem" rSc="settingsTabSkin"><%- lang('settings.navSkin') %></button>
                     <button class="settingsNavItem" rSc="settingsTabMinecraft"><%- lang('settings.navMinecraft') %></button>
                     <button class="settingsNavItem" rSc="settingsTabMods"><%- lang('settings.navMods') %></button>
                     <button class="settingsNavItem" rSc="settingsTabJava"><%- lang('settings.navJava') %></button>
@@ -69,6 +70,43 @@
                 </div>
             </div>
         </div>
+        <div id="settingsTabSkin" class="settingsTab" style="display: none;">
+            <div class="settingsTabHeader">
+                <span class="settingsTabHeaderText"><%- lang('settings.skinHeaderText') %></span>
+                <span class="settingsTabHeaderDesc"><%- lang('settings.skinHeaderDesc') %></span>
+            </div>
+            <div id="settingsSkinMessage"></div>
+            <div id="settingsSkinContent" style="display: none;">
+                <div id="settingsSkinPreview">
+                    <canvas id="settingsSkinCanvas"></canvas>
+                    <span id="settingsSkinPreviewName"></span>
+                    <div id="settingsSkinModel">
+                        <button class="settingsSkinModelOption" variant="classic"><%- lang('settings.skinModelClassic') %></button>
+                        <button class="settingsSkinModelOption" variant="slim"><%- lang('settings.skinModelSlim') %></button>
+                    </div>
+                    <label id="settingsSkinElytraLabel"><input type="checkbox" id="settingsSkinElytra"> <%- lang('settings.skinElytra') %></label>
+                    <button id="settingsSkinApply" disabled><%- lang('settings.skinApply') %></button>
+                    <span id="settingsSkinStatus"></span>
+                </div>
+                <div id="settingsSkinRight">
+                    <span class="settingsSkinSectionTitle"><%- lang('settings.skinLibraryTitle') %></span>
+                    <div id="settingsSkinLibrary"></div>
+                    <div id="settingsSkinDrop">
+                        <span><%- lang('settings.skinDropDesc') %></span>
+                        <div class="settingsSkinButtons">
+                            <button id="settingsSkinAddFile" class="settingsImportSmallButton" dialogTitle="<%- lang('settings.skinAddFileTitle') %>"><%- lang('settings.skinAddFile') %></button>
+                            <button id="settingsSkinImportOfficial" class="settingsImportSmallButton" style="display: none;"></button>
+                        </div>
+                        <div class="settingsSkinButtons">
+                            <input type="text" id="settingsSkinPlayerName" maxlength="16" spellcheck="false" placeholder="<%- lang('settings.skinPlayerPlaceholder') %>">
+                            <button id="settingsSkinPlayerCopy" class="settingsImportSmallButton"><%- lang('settings.skinPlayerCopy') %></button>
+                        </div>
+                    </div>
+                    <span class="settingsSkinSectionTitle"><%- lang('settings.skinCapesTitle') %></span>
+                    <div id="settingsSkinCapes"></div>
+                </div>
+            </div>
+        </div>
         <div id="settingsTabMinecraft" class="settingsTab" style="display: none;">
             <div class="settingsTabHeader">
                 <span class="settingsTabHeaderText"><%- lang('settings.minecraftTabHeaderText') %></span>
@@ -123,6 +161,7 @@
                     <span class="settingsImportLabel"><%- lang('settings.importSourceTitle') %></span>
                     <div id="settingsImportSourceList"></div>
                     <button id="settingsImportSourceButton" class="settingsImportSmallButton" dialogTitle="<%- lang('settings.importSelectFolder') %>"><%- lang('settings.importChooseFolder') %></button>
+                    <span id="settingsImportSourceHelp"><%- lang('settings.importSourceHelp') %></span>
                     <span id="settingsImportSourceNote"></span>
                 </div>
                 <div id="settingsImportItems"></div>

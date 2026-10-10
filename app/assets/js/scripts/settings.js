@@ -282,6 +282,11 @@ function settingsNavItemListener(ele, fade = true){
     let prevTab = selectedSettingsTab
     selectedSettingsTab = ele.getAttribute('rSc')
 
+    setSkinViewerVisible(selectedSettingsTab === 'settingsTabSkin')
+    if(selectedSettingsTab === 'settingsTabSkin'){
+        prepareSkinTab()
+    }
+
     document.getElementById(prevTab).onscroll = null
     document.getElementById(selectedSettingsTab).onscroll = settingsTabScrollListener
 
@@ -331,6 +336,7 @@ function fullSettingsSave() {
 
 /* Closes the settings view and saves all data. */
 settingsNavDone.onclick = () => {
+    setSkinViewerVisible(false)
     fullSettingsSave()
     switchView(getCurrentView(), VIEWS.landing)
 }
@@ -1561,11 +1567,6 @@ function prepareUpdateTab(data = null){
  */
 
 /**
-  * Prepare the entire settings UI.
-  * 
-  * @param {boolean} first Whether or not it is the first load.
-  */
-/**
  * Minecraft Settings Import
  */
 
@@ -2010,6 +2011,679 @@ async function prepareMinecraftImport(){
     await renderImportCustomList()
 }
 
+/**
+ * Skin Tab
+ */
+
+const SkinManager = require('./assets/js/skinmanager')
+
+const skinQuery = (key, placeHolders) => Lang.queryJS(`settings.skin.${key}`, placeHolders)
+
+const skinState = {
+    viewer: null,
+    library: null,
+    uuid: null,
+    profile: null,
+    activeHash: null,
+    entries: [],
+    images: {},
+    capeImages: {},
+    previewHash: null,
+    previewVariant: 'classic',
+    previewCape: null,
+    busy: false,
+    loadId: 0
+}
+
+/**
+ * @param {Buffer} png A PNG image.
+ * @returns {string} The image as a data URL.
+ */
+function skinDataUrl(png){
+    return `data:image/png;base64,${png.toString('base64')}`
+}
+
+/**
+ * @param {string} src An image URL.
+ * @returns {Promise<HTMLImageElement>} The loaded image.
+ */
+function loadSkinImage(src){
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = reject
+        img.src = src
+    })
+}
+
+/**
+ * Guess the arm model of a skin, like Minecraft does: slim skins leave
+ * transparent pixels where the fourth column of each arm would be.
+ *
+ * @param {HTMLImageElement} img The skin.
+ * @returns {'classic'|'slim'} The arm model.
+ */
+function inferSkinVariant(img){
+    if(img.naturalHeight !== 64){
+        return 'classic'
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(img, 0, 0)
+    const transparent = (x, y, w, h) => {
+        const data = ctx.getImageData(x, y, w, h).data
+        for(let i = 3; i < data.length; i += 4){
+            if(data[i] !== 255){
+                return true
+            }
+        }
+        return false
+    }
+    return transparent(50, 16, 2, 4) || transparent(54, 20, 2, 12) || transparent(42, 48, 2, 4) || transparent(46, 52, 2, 12) ? 'slim' : 'classic'
+}
+
+/**
+ * Draw the front of a skin (with its second layer) on a 16x32 canvas.
+ *
+ * @param {HTMLCanvasElement} canvas The canvas.
+ * @param {HTMLImageElement} img The skin.
+ * @param {'classic'|'slim'} variant The arm model.
+ */
+function drawSkinFront(canvas, img, variant){
+    canvas.width = 16
+    canvas.height = 32
+    const ctx = canvas.getContext('2d')
+    ctx.imageSmoothingEnabled = false
+    const legacy = img.naturalHeight === 32
+    const arm = variant === 'slim' ? 3 : 4
+    const part = (sx, sy, w, h, dx, dy, mirror = false) => {
+        if(mirror){
+            ctx.save()
+            ctx.translate(dx + w, dy)
+            ctx.scale(-1, 1)
+            ctx.drawImage(img, sx, sy, w, h, 0, 0, w, h)
+            ctx.restore()
+        } else {
+            ctx.drawImage(img, sx, sy, w, h, dx, dy, w, h)
+        }
+    }
+    // Primera capa.
+    part(8, 8, 8, 8, 4, 0)
+    part(20, 20, 8, 12, 4, 8)
+    part(44, 20, arm, 12, 4 - arm, 8)
+    part(4, 20, 4, 12, 4, 20)
+    if(legacy){
+        part(44, 20, arm, 12, 12, 8, true)
+        part(4, 20, 4, 12, 8, 20, true)
+    } else {
+        part(36, 52, arm, 12, 12, 8)
+        part(20, 52, 4, 12, 8, 20)
+    }
+    // Segunda capa (sombrero, chaqueta, mangas y pantalones).
+    part(40, 8, 8, 8, 4, 0)
+    if(!legacy){
+        part(20, 36, 8, 12, 4, 8)
+        part(44, 36, arm, 12, 4 - arm, 8)
+        part(52, 52, arm, 12, 12, 8)
+        part(4, 36, 4, 12, 4, 20)
+        part(4, 52, 4, 12, 8, 20)
+    }
+}
+
+/**
+ * Draw the outer face of a cape on a 10x16 canvas.
+ *
+ * @param {HTMLCanvasElement} canvas The canvas.
+ * @param {HTMLImageElement} img The cape texture.
+ */
+function drawCapeFront(canvas, img){
+    // Las capas HD son múltiplos de 64x32.
+    const scale = img.naturalWidth / 64
+    canvas.width = 10
+    canvas.height = 16
+    const ctx = canvas.getContext('2d')
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(img, 1 * scale, 1 * scale, 10 * scale, 16 * scale, 0, 0, 10, 16)
+}
+
+/**
+ * Show a status line under the apply button.
+ *
+ * @param {string} text The message ('' to clear it).
+ * @param {'info'|'ok'|'error'} type The kind of message.
+ */
+function setSkinStatus(text, type = 'info'){
+    const status = document.getElementById('settingsSkinStatus')
+    status.innerHTML = text
+    status.setAttribute('type', type)
+}
+
+/**
+ * @param {Error} err An error from SkinManager.
+ * @returns {string} A message for the player.
+ */
+function skinErrorMessage(err){
+    const code = err instanceof SkinManager.SkinError ? err.code : 'unknown'
+    return skinQuery(`errors.${code}`, { detail: escapeImportHtml(err.message) })
+}
+
+/**
+ * Show a message in place of the tab content (no account, Mojang account, load error).
+ *
+ * @param {string|null} html The message, or null to show the content.
+ */
+function setSkinTabMessage(html){
+    document.getElementById('settingsSkinMessage').innerHTML = html || ''
+    document.getElementById('settingsSkinContent').style.display = html ? 'none' : ''
+    if(skinState.viewer != null){
+        skinState.viewer.renderPaused = html != null
+    }
+}
+
+/**
+ * Create the 3D viewer the first time the tab is opened.
+ */
+function ensureSkinViewer(){
+    if(skinState.viewer != null){
+        return
+    }
+    const skinview3d = require('skinview3d')
+    const viewer = new skinview3d.SkinViewer({
+        canvas: document.getElementById('settingsSkinCanvas'),
+        width: 190,
+        height: 250
+    })
+    viewer.fov = 40
+    viewer.zoom = 0.8
+    viewer.controls.enableZoom = false
+    viewer.controls.enablePan = false
+    viewer.animation = new skinview3d.WalkingAnimation()
+    viewer.animation.speed = 0.6
+    viewer.animation.headBobbing = false
+    viewer.playerObject.rotation.y = -0.7
+    skinState.viewer = viewer
+}
+
+/**
+ * Pause the 3D viewer while the tab is not visible.
+ *
+ * @param {boolean} visible Whether the skin tab is visible.
+ */
+function setSkinViewerVisible(visible){
+    if(skinState.viewer != null){
+        skinState.viewer.renderPaused = !visible
+    }
+}
+
+/**
+ * Load the preview (skin, model and cape) into the 3D viewer.
+ */
+async function updateSkinPreview(){
+    const viewer = skinState.viewer
+    const entry = skinState.entries.find(e => e.hash === skinState.previewHash)
+    if(entry != null){
+        await viewer.loadSkin(skinState.images[entry.hash].src, { model: skinState.previewVariant === 'slim' ? 'slim' : 'default' })
+        document.getElementById('settingsSkinPreviewName').textContent = skinEntryName(entry)
+    }
+    const cape = skinState.previewCape != null ? skinState.capeImages[skinState.previewCape] : null
+    if(cape != null){
+        await viewer.loadCape(cape.src, { backEquipment: document.getElementById('settingsSkinElytra').checked ? 'elytra' : 'cape' })
+    } else {
+        viewer.loadCape(null)
+    }
+
+    for(const option of document.getElementsByClassName('settingsSkinModelOption')){
+        option.toggleAttribute('selected', option.getAttribute('variant') === skinState.previewVariant)
+    }
+    for(const card of document.querySelectorAll('#settingsSkinLibrary .settingsSkinCard')){
+        card.toggleAttribute('selected', card.getAttribute('hash') === skinState.previewHash)
+    }
+    for(const card of document.querySelectorAll('#settingsSkinCapes .settingsSkinCard')){
+        card.toggleAttribute('selected', (card.getAttribute('cape') || null) === skinState.previewCape)
+    }
+
+    const profile = skinState.profile
+    const changed = skinState.previewHash !== skinState.activeHash
+        || skinState.previewVariant !== profile.skin?.variant
+        || skinState.previewCape !== profile.activeCape
+    document.getElementById('settingsSkinApply').disabled = !changed || skinState.busy
+}
+
+/**
+ * @param {Object} entry A library entry.
+ * @returns {string} The name to show for it.
+ */
+function skinEntryName(entry){
+    return entry.name || skinQuery('officialSkinName')
+}
+
+/**
+ * Render the skin library.
+ */
+async function renderSkinLibrary(){
+    const list = document.getElementById('settingsSkinLibrary')
+    list.innerHTML = ''
+    for(const entry of skinState.entries){
+        if(skinState.images[entry.hash] == null){
+            try {
+                skinState.images[entry.hash] = await loadSkinImage(skinDataUrl(await skinState.library.read(entry.hash)))
+            } catch(err){
+                continue
+            }
+        }
+        const active = entry.hash === skinState.activeHash
+        const card = document.createElement('div')
+        card.className = 'settingsSkinCard'
+        card.setAttribute('hash', entry.hash)
+        card.title = skinEntryName(entry)
+        const thumb = document.createElement('canvas')
+        thumb.className = 'settingsSkinThumb'
+        drawSkinFront(thumb, skinState.images[entry.hash], entry.variant)
+        card.appendChild(thumb)
+        const name = document.createElement('span')
+        name.className = 'settingsSkinCardName'
+        name.textContent = skinEntryName(entry)
+        card.appendChild(name)
+        if(active){
+            const badge = document.createElement('span')
+            badge.className = 'settingsSkinBadge'
+            badge.textContent = skinQuery('current')
+            card.appendChild(badge)
+        } else {
+            const remove = document.createElement('button')
+            remove.className = 'settingsSkinRemove'
+            remove.title = skinQuery('remove')
+            remove.textContent = '✕'
+            remove.onclick = e => {
+                e.stopPropagation()
+                confirmRemoveSkin(entry)
+            }
+            card.appendChild(remove)
+        }
+        card.onclick = () => {
+            skinState.previewHash = entry.hash
+            skinState.previewVariant = entry.hash === skinState.activeHash ? skinState.profile.skin.variant : entry.variant
+            setSkinStatus('')
+            updateSkinPreview()
+        }
+        list.appendChild(card)
+    }
+}
+
+/**
+ * Render the capes the account owns.
+ */
+function renderSkinCapes(){
+    const list = document.getElementById('settingsSkinCapes')
+    list.innerHTML = ''
+    const capes = skinState.profile.capes.filter(c => skinState.capeImages[c.id] != null)
+
+    const addCard = (capeId, label, img) => {
+        const card = document.createElement('div')
+        card.className = 'settingsSkinCard settingsSkinCapeCard'
+        card.setAttribute('cape', capeId || '')
+        card.title = label
+        if(img != null){
+            const thumb = document.createElement('canvas')
+            thumb.className = 'settingsSkinCapeThumb'
+            drawCapeFront(thumb, img)
+            card.appendChild(thumb)
+        } else {
+            const none = document.createElement('span')
+            none.className = 'settingsSkinCapeNone'
+            none.textContent = '∅'
+            card.appendChild(none)
+        }
+        const name = document.createElement('span')
+        name.className = 'settingsSkinCardName'
+        name.textContent = label
+        card.appendChild(name)
+        if(capeId === skinState.profile.activeCape){
+            const badge = document.createElement('span')
+            badge.className = 'settingsSkinBadge'
+            badge.textContent = skinQuery('current')
+            card.appendChild(badge)
+        }
+        card.onclick = () => {
+            skinState.previewCape = capeId
+            setSkinStatus('')
+            updateSkinPreview()
+        }
+        list.appendChild(card)
+    }
+
+    if(capes.length === 0){
+        const empty = document.createElement('span')
+        empty.className = 'settingsSkinEmpty'
+        empty.innerHTML = skinQuery('noCapes')
+        list.appendChild(empty)
+        return
+    }
+    addCard(null, skinQuery('noCape'), null)
+    for(const cape of capes){
+        addCard(cape.id, cape.alias, skinState.capeImages[cape.id])
+    }
+}
+
+/**
+ * Show the "import from the official launcher" button if it has skins we don't have.
+ */
+async function refreshOfficialSkinsButton(){
+    const button = document.getElementById('settingsSkinImportOfficial')
+    const official = await SkinManager.readOfficialSkins()
+    const known = new Set(skinState.entries.map(e => e.hash))
+    const missing = official.filter(s => !known.has(SkinManager.hashPng(s.png)))
+    button.style.display = missing.length > 0 ? '' : 'none'
+    button.innerHTML = skinQuery('importOfficial', { count: missing.length })
+    button.onclick = async () => {
+        let last = null
+        for(const skin of missing){
+            const { entry } = await skinState.library.add(skin.png, { name: skin.name, variant: skin.variant, source: 'official' })
+            last = entry
+        }
+        await reloadSkinLibrary(last?.hash)
+        setSkinStatus(skinQuery('importedOfficial', { count: missing.length }), 'ok')
+    }
+}
+
+/**
+ * Re-read the library from disk and redraw it.
+ *
+ * @param {string} previewHash Optional. A skin to preview afterwards.
+ */
+async function reloadSkinLibrary(previewHash = null){
+    skinState.entries = await skinState.library.list()
+    // La skin activa siempre va primero.
+    skinState.entries.sort((a, b) => (b.hash === skinState.activeHash) - (a.hash === skinState.activeHash))
+    await renderSkinLibrary()
+    await refreshOfficialSkinsButton()
+    if(previewHash != null){
+        const entry = skinState.entries.find(e => e.hash === previewHash)
+        if(entry != null){
+            skinState.previewHash = entry.hash
+            skinState.previewVariant = entry.hash === skinState.activeHash ? skinState.profile.skin.variant : entry.variant
+        }
+    }
+    await updateSkinPreview()
+}
+
+/**
+ * Ask before removing a skin from the launcher's library.
+ *
+ * @param {Object} entry The library entry.
+ */
+function confirmRemoveSkin(entry){
+    setOverlayContent(
+        skinQuery('removeTitle'),
+        skinQuery('removeDesc', { name: escapeImportHtml(skinEntryName(entry)) }),
+        skinQuery('removeConfirm'),
+        skinQuery('cancel')
+    )
+    setOverlayHandler(async () => {
+        toggleOverlay(false)
+        await skinState.library.remove(entry.hash)
+        delete skinState.images[entry.hash]
+        await reloadSkinLibrary(skinState.previewHash === entry.hash ? skinState.activeHash : null)
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+    })
+    toggleOverlay(true, true)
+}
+
+/**
+ * Add PNG files to the library (from the file picker or a drop).
+ *
+ * @param {string[]} files Paths to the files.
+ */
+async function addSkinFiles(files){
+    const errors = []
+    let last = null
+    for(const file of files){
+        const name = path.basename(file)
+        try {
+            const png = await mcImportFs.readFile(file)
+            SkinManager.checkSkinPng(png)
+            const img = await loadSkinImage(skinDataUrl(png))
+            const { entry } = await skinState.library.add(png, {
+                name: path.basename(file, path.extname(file)),
+                variant: inferSkinVariant(img),
+                source: 'file'
+            })
+            last = entry
+        } catch(err){
+            errors.push(`<strong>${escapeImportHtml(name)}</strong>: ${skinErrorMessage(err)}`)
+        }
+    }
+    if(last != null){
+        await reloadSkinLibrary(last.hash)
+    }
+    setSkinStatus(errors.join('<br>'), errors.length > 0 ? 'error' : 'info')
+}
+
+/**
+ * Get a valid Minecraft token for the selected account, refreshing it if needed.
+ *
+ * @returns {Promise<string>} The token.
+ */
+async function getSkinToken(){
+    const valid = await AuthManager.validateSelected()
+    if(!valid){
+        throw new SkinManager.SkinError('unauthorized')
+    }
+    return ConfigManager.getSelectedAccount().accessToken
+}
+
+/**
+ * Make the account's skin and cape the ones being previewed.
+ */
+async function applySkinChanges(){
+    const button = document.getElementById('settingsSkinApply')
+    skinState.busy = true
+    button.disabled = true
+    setSkinStatus(skinQuery('saving'))
+    try {
+        const token = await getSkinToken()
+        let profile = skinState.profile
+        const entry = skinState.entries.find(e => e.hash === skinState.previewHash)
+        if(entry != null && (skinState.previewHash !== skinState.activeHash || skinState.previewVariant !== profile.skin?.variant)){
+            profile = await SkinManager.uploadSkin(token, await skinState.library.read(entry.hash), skinState.previewVariant)
+            await skinState.library.update(entry.hash, { variant: skinState.previewVariant })
+            skinState.activeHash = entry.hash
+        }
+        if(skinState.previewCape !== profile.activeCape){
+            profile = await SkinManager.setCape(token, skinState.previewCape)
+        }
+        skinState.profile = profile
+        await reloadSkinLibrary()
+        renderSkinCapes()
+        refreshSkinAvatars()
+        setSkinStatus(skinQuery('saved'), 'ok')
+    } catch(err){
+        setSkinStatus(skinErrorMessage(err), 'error')
+    } finally {
+        skinState.busy = false
+        await updateSkinPreview()
+    }
+}
+
+/**
+ * Reload the account pictures that show the skin (they come from mc-heads.net, which caches them).
+ */
+function refreshSkinAvatars(){
+    const acc = ConfigManager.getSelectedAccount()
+    const bust = Date.now()
+    document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${acc.uuid}/right?v=${bust}')`
+    for(const img of document.querySelectorAll(`.settingsAuthAccount[uuid="${acc.uuid}"] .settingsAuthAccountImage`)){
+        img.src = `https://mc-heads.net/body/${acc.uuid}/60?v=${bust}`
+    }
+}
+
+/**
+ * Load the selected account's skin and capes. Called every time the tab is opened.
+ */
+async function prepareSkinTab(){
+    const loadId = ++skinState.loadId
+    const account = ConfigManager.getSelectedAccount()
+    if(account == null){
+        setSkinTabMessage(skinQuery('noAccount'))
+        return
+    }
+    if(account.type !== 'microsoft'){
+        setSkinTabMessage(skinQuery('mojangAccount'))
+        return
+    }
+
+    if(skinState.library == null){
+        skinState.library = new SkinManager.SkinLibrary(path.join(ConfigManager.getLauncherDirectory(), 'skins'))
+        bindSkinTab()
+    }
+    try {
+        ensureSkinViewer()
+    } catch(err){
+        setSkinTabMessage(skinQuery('errors.viewer', { detail: escapeImportHtml(err.message) }))
+        return
+    }
+
+    const firstLoad = skinState.uuid !== account.uuid || skinState.profile == null
+    if(firstLoad){
+        setSkinTabMessage(skinQuery('loading'))
+    } else {
+        setSkinTabMessage(null)
+    }
+
+    try {
+        const profile = await SkinManager.getProfile(await getSkinToken())
+        let activeHash = null
+        if(profile.skin != null){
+            const png = await SkinManager.downloadTexture(profile.skin.url)
+            const { entry } = await skinState.library.add(png, { name: profile.name, variant: profile.skin.variant, source: 'account' })
+            activeHash = entry.hash
+        }
+        for(const cape of profile.capes){
+            if(skinState.capeImages[cape.id] == null){
+                try {
+                    skinState.capeImages[cape.id] = await loadSkinImage(skinDataUrl(await SkinManager.downloadTexture(cape.url)))
+                } catch(err){
+                    // Sin imagen, la capa no se muestra.
+                }
+            }
+        }
+        if(loadId !== skinState.loadId){
+            return
+        }
+
+        const accountChanged = skinState.uuid !== account.uuid
+        skinState.uuid = account.uuid
+        skinState.profile = profile
+        skinState.activeHash = activeHash
+        if(accountChanged || skinState.previewHash == null){
+            skinState.previewHash = activeHash
+            skinState.previewVariant = profile.skin?.variant || 'classic'
+            skinState.previewCape = profile.activeCape
+        }
+        setSkinTabMessage(null)
+        renderSkinCapes()
+        await reloadSkinLibrary()
+        if(firstLoad){
+            setSkinStatus('')
+        }
+    } catch(err){
+        if(loadId === skinState.loadId){
+            setSkinTabMessage(skinErrorMessage(err))
+        }
+    }
+}
+
+/**
+ * Bind the tab's buttons once.
+ */
+function bindSkinTab(){
+    const { webUtils } = require('electron')
+
+    for(const option of document.getElementsByClassName('settingsSkinModelOption')){
+        option.onclick = () => {
+            skinState.previewVariant = option.getAttribute('variant')
+            setSkinStatus('')
+            updateSkinPreview()
+        }
+    }
+    document.getElementById('settingsSkinElytra').onchange = () => updateSkinPreview()
+    document.getElementById('settingsSkinApply').onclick = applySkinChanges
+
+    const addButton = document.getElementById('settingsSkinAddFile')
+    addButton.onclick = async () => {
+        const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+            title: addButton.getAttribute('dialogTitle'),
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'PNG', extensions: ['png'] }]
+        })
+        if(!res.canceled){
+            await addSkinFiles(res.filePaths)
+        }
+    }
+
+    const playerInput = document.getElementById('settingsSkinPlayerName')
+    const playerButton = document.getElementById('settingsSkinPlayerCopy')
+    const copyPlayerSkin = async () => {
+        const username = playerInput.value.trim()
+        if(!/^[A-Za-z0-9_]{1,16}$/.test(username)){
+            setSkinStatus(skinQuery('errors.playerNotFound'), 'error')
+            return
+        }
+        playerButton.disabled = true
+        setSkinStatus(skinQuery('copying', { name: escapeImportHtml(username) }))
+        try {
+            const skin = await SkinManager.getPlayerSkin(username)
+            const { entry } = await skinState.library.add(skin.png, { name: skin.name, variant: skin.variant, source: 'player' })
+            playerInput.value = ''
+            await reloadSkinLibrary(entry.hash)
+            setSkinStatus('')
+        } catch(err){
+            setSkinStatus(skinErrorMessage(err), 'error')
+        } finally {
+            playerButton.disabled = false
+        }
+    }
+    playerButton.onclick = copyPlayerSkin
+    playerInput.onkeydown = e => {
+        if(e.key === 'Enter'){
+            copyPlayerSkin()
+        }
+    }
+
+    const tab = document.getElementById('settingsTabSkin')
+    const drop = document.getElementById('settingsSkinDrop')
+    tab.ondragenter = e => {
+        e.preventDefault()
+        drop.setAttribute('drag', '')
+    }
+    tab.ondragover = e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+    }
+    tab.ondragleave = e => {
+        if(!tab.contains(e.relatedTarget)){
+            drop.removeAttribute('drag')
+        }
+    }
+    tab.ondrop = async e => {
+        e.preventDefault()
+        drop.removeAttribute('drag')
+        if(document.getElementById('settingsSkinContent').style.display === 'none'){
+            return
+        }
+        await addSkinFiles([...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)))
+    }
+}
+
+/**
+  * Prepare the entire settings UI.
+  * 
+  * @param {boolean} first Whether or not it is the first load.
+  */
 async function prepareSettings(first = false) {
     if(first){
         setupSettingsTabs()
@@ -2023,6 +2697,9 @@ async function prepareSettings(first = false) {
     await prepareJavaTab()
     prepareAboutTab()
     await prepareMinecraftImport()
+    if(selectedSettingsTab === 'settingsTabSkin'){
+        prepareSkinTab()
+    }
 }
 
 // Prepare the settings UI on startup.
