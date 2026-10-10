@@ -582,7 +582,8 @@ async function ensureForgeInstalled(serv, modLoaderData) {
 
 /**
  * La primera vez que se juega un modpack, si la instancia todavía no tiene options.txt
- * y el jugador tiene un Minecraft normal, ofrece traer sus teclas y ajustes.
+ * y se encuentra un Minecraft del jugador (launcher oficial, CurseForge, Prism...), ofrece
+ * traer sus teclas y ajustes desde el más parecido al modpack.
  * Se muestra una sola vez (queda guardado en la config del launcher).
  *
  * @param {Object} serv El servidor seleccionado (HeliosServer).
@@ -595,19 +596,27 @@ async function offerMinecraftImport(serv) {
     const MinecraftImport = require('./assets/js/minecraftimport')
     const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
 
-    const instanceDir = path.join(ConfigManager.getInstanceDirectory(), serv.rawServer.id)
-    const sourceDir = MinecraftImport.getDefaultSourceDir()
-    if(await fs.pathExists(path.join(instanceDir, 'options.txt')) || !await fs.pathExists(path.join(sourceDir, 'options.txt'))) {
+    const target = await getMinecraftImportTarget(serv)
+    if(await fs.pathExists(path.join(target.instanceDir, 'options.txt'))) {
+        return
+    }
+    let source
+    try {
+        source = (await MinecraftImport.detectSources(target)).find(s => s.found.options)
+    } catch(err) {
+        loggerLanding.warn('Could not look for Minecraft installations.', err)
+    }
+    if(source == null) {
         return
     }
 
     ConfigManager.setMinecraftImportOffered(true)
     ConfigManager.save()
 
-    const info = await MinecraftImport.inspectSource(sourceDir)
-    let description = q('firstRunDesc', { server: escapeImportHtml(serv.rawServer.name) })
-    if(info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION) {
-        description += `<br><br>${q('newerVersionNote', { mc: serv.rawServer.minecraftVersion })}`
+    const sourceTitle = importSourceTitle(source)
+    let description = q('firstRunDesc', { source: escapeImportHtml(sourceTitle), server: escapeImportHtml(target.name) })
+    if(source.dataVersion != null && source.dataVersion > MinecraftImport.TARGET_DATA_VERSION) {
+        description += `<br><br>${q('newerVersionNote', { mc: escapeImportHtml(target.mcVersion) })}`
     }
 
     const accepted = await new Promise(resolve => {
@@ -630,9 +639,14 @@ async function offerMinecraftImport(serv) {
     }
 
     try {
-        const results = await MinecraftImport.importSettings(sourceDir, instanceDir, { options: true, servers: true, journeymap: true, config: false })
+        setLaunchDetails(q('importing'))
+        const selection = {}
+        for(const item of MinecraftImport.ITEMS) {
+            selection[item.key] = item.defaultOn && source.found[item.key]
+        }
+        const results = await MinecraftImport.importSettings(source.dir, target.instanceDir, selection)
         await new Promise(resolve => {
-            setOverlayContent(q('summaryTitle'), buildMinecraftImportSummary(results, sourceDir, serv.rawServer.name), q('continueButton'))
+            setOverlayContent(q('summaryTitle'), buildMinecraftImportSummary(results, sourceTitle, target.name), q('continueButton'))
             setOverlayHandler(() => {
                 toggleOverlay(false)
                 resolve()
@@ -644,6 +658,7 @@ async function offerMinecraftImport(serv) {
         // Si falla la importación, el juego igual se lanza con los ajustes por defecto.
         loggerLanding.error('Error while importing Minecraft settings.', err)
     }
+    setLaunchDetails(Lang.queryJS('landing.dlAsync.preparingToLaunch'))
 }
 
 async function dlAsync(login = true) {

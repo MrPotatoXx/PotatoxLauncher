@@ -1569,10 +1569,18 @@ function prepareUpdateTab(data = null){
  * Minecraft Settings Import
  */
 
+const mcImportFs = require('fs-extra')
+
+let mcImportSources = []
 let mcImportSourceDir = null
+let mcImportSourceInfo = null
+const mcImportSelection = {}
+let mcImportCustomPaths = []
+
+const mcImportQuery = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
 
 /**
- * Escape text before putting it inside overlay HTML (paths can contain anything).
+ * Escape text before putting it inside HTML (paths and names can contain anything).
  *
  * @param {string} text The text to escape.
  * @returns {string} The escaped text.
@@ -1582,34 +1590,72 @@ function escapeImportHtml(text){
 }
 
 /**
+ * @param {number} bytes A size in bytes.
+ * @returns {string} The size in a readable unit.
+ */
+function formatImportSize(bytes){
+    if(bytes < 1024) return `${bytes} B`
+    if(bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+    if(bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
+}
+
+/**
+ * @param {Date} date A date in the past.
+ * @returns {string} How long ago it was ("hace 2 días").
+ */
+function formatImportAgo(date){
+    const rtf = new Intl.RelativeTimeFormat(mcImportQuery('locale'), { numeric: 'auto' })
+    const diff = (date.getTime() - Date.now()) / 1000
+    const units = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]]
+    for(const [unit, secs] of units){
+        if(Math.abs(diff) >= secs){
+            return rtf.format(Math.round(diff / secs), unit)
+        }
+    }
+    return rtf.format(0, 'minute')
+}
+
+/**
+ * @param {Object} source A detected source.
+ * @returns {string} A short title, e.g. "CurseForge · server".
+ */
+function importSourceTitle(source){
+    const launcher = mcImportQuery(`launchers.${source.launcher}`)
+    return source.name ? `${launcher} · ${source.name}` : launcher
+}
+
+/**
  * Build the HTML summary shown after an import.
  *
  * @param {Array<Object>} results The results from MinecraftImport.importSettings.
- * @param {string} sourceDir Where the settings were imported from.
+ * @param {string} sourceTitle Where the settings were imported from.
  * @param {string} serverName The name of the server whose instance received them.
  * @returns {string} The summary HTML.
  */
-function buildMinecraftImportSummary(results, sourceDir, serverName){
-    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
+function buildMinecraftImportSummary(results, sourceTitle, serverName){
     const lines = results.map(r => {
         let detail
         if(r.status === 'missing'){
-            detail = q('resultMissing')
+            detail = mcImportQuery('resultMissing')
+        } else if(r.status === 'blocked'){
+            detail = mcImportQuery(`blocked.${r.reason}`)
         } else if(r.status === 'error'){
-            detail = q('resultError', { error: escapeImportHtml(r.error) })
-        } else if(r.item === 'config'){
-            detail = q('resultConfig', { files: r.files, skipped: r.skipped })
-        } else if(r.item === 'journeymap'){
-            detail = q('resultFiles', { files: r.files })
+            detail = mcImportQuery('resultError', { error: escapeImportHtml(r.error) })
+        } else if(r.skipped != null){
+            detail = mcImportQuery('resultMissingOnly', { files: r.files, skipped: r.skipped })
+        } else if(r.files > 1){
+            detail = mcImportQuery('resultFiles', { files: r.files })
         } else {
-            detail = q('resultImported')
+            detail = mcImportQuery('resultImported')
         }
         if(r.backup){
-            detail += `<br><span class="mcImportBackup">${q('resultBackup', { backup: escapeImportHtml(path.basename(r.backup)) })}</span>`
+            detail += `<br><span class="mcImportBackup">${mcImportQuery('resultBackup', { backup: escapeImportHtml(path.basename(r.backup)) })}</span>`
         }
-        return `<li><strong>${q(`items.${r.item}`)}</strong>: ${detail}</li>`
+        const label = r.item != null ? mcImportQuery(`items.${r.item}`) : escapeImportHtml(r.rel.replace(/\\/g, '/'))
+        return `<li><strong>${label}</strong>: ${detail}</li>`
     })
-    return `${q('summaryFrom', { source: escapeImportHtml(sourceDir) })}<br>${q('summaryTo', { server: escapeImportHtml(serverName) })}`
+    return `${mcImportQuery('summaryFrom', { source: escapeImportHtml(sourceTitle) })}<br>${mcImportQuery('summaryTo', { server: escapeImportHtml(serverName) })}`
         + `<ul class="mcImportSummaryList">${lines.join('')}</ul>`
 }
 
@@ -1620,56 +1666,209 @@ function buildMinecraftImportSummary(results, sourceDir, serverName){
  * @param {string} description The overlay description (HTML).
  */
 function showMinecraftImportMessage(title, description){
-    setOverlayContent(title, description, Lang.queryJS('settings.minecraftImport.okButton'))
+    setOverlayContent(title, description, mcImportQuery('okButton'))
     setOverlayHandler(null)
     toggleOverlay(true)
 }
 
 /**
- * @returns {Promise<{name: string, mcVersion: string, instanceDir: string}>} The selected server's instance.
+ * Describe the selected server's instance, and what to compare against when recommending a source.
+ *
+ * @param {Object} serv Optional. The server (HeliosServer); defaults to the selected one.
+ * @returns {Promise<Object>} name, mcVersion, loader, modFiles, instanceDir and excludeDirs.
  */
-async function getMinecraftImportTarget(){
-    const serverId = ConfigManager.getSelectedServer()
-    const serv = (await DistroAPI.getDistribution()).getServerById(serverId)
+async function getMinecraftImportTarget(serv = null){
+    if(serv == null){
+        serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
+    }
+    const types = serv.modules.map(m => m.rawModule.type)
+    let loader = 'vanilla'
+    if(types.includes(Type.ForgeHosted) || types.includes(Type.Forge)) loader = 'forge'
+    else if(types.includes(Type.Fabric)) loader = 'fabric'
     return {
-        name: serv != null ? serv.rawServer.name : serverId,
-        mcVersion: serv != null ? serv.rawServer.minecraftVersion : '',
-        instanceDir: path.join(ConfigManager.getInstanceDirectory(), serverId)
+        name: serv.rawServer.name,
+        mcVersion: serv.rawServer.minecraftVersion,
+        loader,
+        // Nombre original del jar (el de la URL), que es como lo guardan los otros launchers.
+        modFiles: serv.modules.filter(m => [Type.ForgeMod, Type.FabricMod, Type.LiteMod].includes(m.rawModule.type))
+            .map(m => decodeURIComponent(m.rawModule.artifact.url.split('/').pop())),
+        instanceDir: path.join(ConfigManager.getInstanceDirectory(), serv.rawServer.id),
+        excludeDirs: [ConfigManager.getInstanceDirectory()]
     }
 }
 
 /**
- * Show the source folder and what was found in it.
- *
- * @returns {Promise<Object>} The result of MinecraftImport.inspectSource.
+ * Draw the list of detected sources.
  */
-async function refreshMinecraftImportSource(){
-    const MinecraftImport = require('./assets/js/minecraftimport')
-    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
-    if(mcImportSourceDir == null){
-        mcImportSourceDir = MinecraftImport.getDefaultSourceDir()
+function renderImportSources(){
+    const list = document.getElementById('settingsImportSourceList')
+    list.innerHTML = ''
+    for(const source of mcImportSources){
+        const meta = []
+        if(source.mcVersion) meta.push(escapeImportHtml(source.mcVersion))
+        if(source.loader && source.loader !== 'vanilla') meta.push(mcImportQuery(`loaders.${source.loader}`))
+        if(source.sharedMods > 0) meta.push(mcImportQuery('sharedMods', { shared: source.sharedMods, total: source.totalMods }))
+        if(source.lastPlayed) meta.push(mcImportQuery('lastPlayed', { ago: formatImportAgo(source.lastPlayed) }))
+
+        const button = document.createElement('button')
+        button.className = 'settingsImportSourceOption'
+        button.toggleAttribute('selected', mcImportSourceDir === source.dir)
+        button.innerHTML = `<span class="settingsImportSourceName">${escapeImportHtml(importSourceTitle(source))}`
+            + (source.recommended ? ` <span class="settingsImportRecommended">${mcImportQuery('recommended')}</span>` : '')
+            + `</span><span class="settingsImportSourceMeta">${meta.join(' · ')}</span>`
+            + `<span class="settingsImportSourcePath">${escapeImportHtml(source.dir)}</span>`
+        button.onclick = async () => {
+            mcImportSourceDir = source.dir
+            renderImportSources()
+            await refreshImportItems()
+            await renderImportCustomList()
+        }
+        list.appendChild(button)
     }
-    document.getElementById('settingsImportSourceVal').value = mcImportSourceDir
+    if(mcImportSources.length === 0){
+        list.innerHTML = `<span class="settingsImportEmpty">${mcImportQuery('noSourcesFound')}</span>`
+    }
+}
+
+/**
+ * Draw one row per importable item found in the selected source.
+ */
+async function refreshImportItems(){
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const container = document.getElementById('settingsImportItems')
+    const note = document.getElementById('settingsImportSourceNote')
+    container.innerHTML = ''
+    note.innerHTML = ''
+    if(mcImportSourceDir == null){
+        mcImportSourceInfo = null
+        return
+    }
 
     const info = await MinecraftImport.inspectSource(mcImportSourceDir)
-    for(const item of MinecraftImport.ITEMS){
-        const status = document.getElementById(`settingsImportStatus_${item}`)
-        status.innerHTML = info.found[item] ? q('found') : q('notFound')
-        status.toggleAttribute('found', info.found[item])
+    mcImportSourceInfo = info
+    if(!info.exists){
+        note.innerHTML = mcImportQuery('sourceMissing')
+        return
+    }
+    if(!MinecraftImport.ITEMS.some(item => info.found[item.key])){
+        note.innerHTML = mcImportQuery('nothingFound')
+        return
+    }
+    if(info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
+        const target = await getMinecraftImportTarget()
+        note.innerHTML = mcImportQuery('newerVersionNote', { mc: escapeImportHtml(target.mcVersion) })
     }
 
-    const note = document.getElementById('settingsImportSourceNote')
-    if(!info.exists){
-        note.innerHTML = q('sourceMissing')
-    } else if(!MinecraftImport.ITEMS.some(item => info.found[item])){
-        note.innerHTML = q('nothingFound')
-    } else if(info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
-        const target = await getMinecraftImportTarget()
-        note.innerHTML = q('newerVersionNote', { mc: target.mcVersion })
-    } else {
-        note.innerHTML = ''
+    for(const item of MinecraftImport.ITEMS){
+        if(!info.found[item.key]){
+            continue
+        }
+        if(mcImportSelection[item.key] == null){
+            mcImportSelection[item.key] = item.defaultOn
+        }
+        let desc = mcImportQuery(`itemDescs.${item.key}`)
+        if(item.key === 'local'){
+            try {
+                const entries = (await mcImportFs.readdir(path.join(mcImportSourceDir, 'local'))).map(e => e.replace(/\.snbt$/, ''))
+                if(entries.length > 0){
+                    desc += ` (${escapeImportHtml(entries.slice(0, 5).join(', '))}${entries.length > 5 ? '…' : ''})`
+                }
+            } catch (_err) {
+                // Sin detalle.
+            }
+        }
+        const row = document.createElement('div')
+        row.className = 'settingsFieldContainer'
+        row.innerHTML = '<div class="settingsFieldLeft">'
+            + `<span class="settingsFieldTitle">${mcImportQuery(`items.${item.key}`)}</span>`
+            + `<span class="settingsFieldDesc">${desc} <span class="settingsImportStatus" found>· <span class="settingsImportSize">…</span></span></span>`
+            + '</div><div class="settingsFieldRight"><label class="toggleSwitch">'
+            + `<input type="checkbox"${mcImportSelection[item.key] ? ' checked' : ''}><span class="toggleSwitchSlider"></span></label></div>`
+        row.querySelector('input').onchange = e => {
+            mcImportSelection[item.key] = e.target.checked
+        }
+        container.appendChild(row)
+
+        // El tamaño puede tardar en carpetas grandes (JourneyMap); se completa después.
+        const sizeEl = row.querySelector('.settingsImportSize')
+        const dirAtStart = mcImportSourceDir
+        MinecraftImport.getSize(path.join(mcImportSourceDir, item.path)).then(({ size, files }) => {
+            if(dirAtStart === mcImportSourceDir){
+                sizeEl.innerHTML = files > 1 ? mcImportQuery('sizeFiles', { size: formatImportSize(size), files }) : formatImportSize(size)
+            }
+        })
     }
-    return info
+}
+
+/**
+ * Draw the files and folders chosen by hand, with where each one will go.
+ */
+async function renderImportCustomList(){
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const list = document.getElementById('settingsImportCustomList')
+    list.innerHTML = ''
+    if(mcImportCustomPaths.length === 0){
+        return
+    }
+    const target = await getMinecraftImportTarget()
+    const plan = await MinecraftImport.planCustomImport(mcImportSourceDir, target.instanceDir, mcImportCustomPaths)
+    for(const entry of plan){
+        const row = document.createElement('div')
+        row.className = 'settingsImportCustomRow'
+        row.toggleAttribute('blocked', entry.blocked != null)
+        const where = entry.blocked
+            ? mcImportQuery(`blocked.${entry.blocked}`)
+            : mcImportQuery('goesTo', { rel: escapeImportHtml(entry.rel.replace(/\\/g, '/')) })
+        row.innerHTML = `<span class="settingsImportCustomName">${escapeImportHtml(path.basename(entry.src))}${entry.isDir ? '/' : ''}</span>`
+            + `<span class="settingsImportCustomWhere">${where}</span>`
+            + `<button class="settingsImportCustomRemove" title="${mcImportQuery('remove')}">&#10006;</button>`
+        row.querySelector('button').onclick = async () => {
+            mcImportCustomPaths = mcImportCustomPaths.filter(p => p !== entry.src)
+            await renderImportCustomList()
+        }
+        list.appendChild(row)
+    }
+}
+
+/**
+ * Add files or folders chosen by hand (or dropped) to the import.
+ *
+ * @param {string[]} paths The paths.
+ */
+async function addImportCustomPaths(paths){
+    for(const p of paths){
+        if(p && !mcImportCustomPaths.includes(p)){
+            mcImportCustomPaths.push(p)
+        }
+    }
+    await renderImportCustomList()
+}
+
+/**
+ * Use a folder chosen by hand as the source. If it is the root of a Prism/MultiMC
+ * instance, the game folder inside it is used.
+ *
+ * @param {string} dir The chosen folder.
+ */
+async function useImportSourceFolder(dir){
+    for(const sub of ['.minecraft', 'minecraft']){
+        if(await mcImportFs.pathExists(path.join(dir, sub, 'options.txt'))){
+            dir = path.join(dir, sub)
+            break
+        }
+    }
+    if(!mcImportSources.some(s => path.resolve(s.dir).toLowerCase() === path.resolve(dir).toLowerCase())){
+        const MinecraftImport = require('./assets/js/minecraftimport')
+        // Para una carpeta .minecraft o minecraft, el nombre útil es el de la instancia que la contiene.
+        const base = path.basename(dir)
+        const name = ['.minecraft', 'minecraft'].includes(base.toLowerCase()) ? path.basename(path.dirname(dir)) : base
+        const dataVersion = await MinecraftImport.readDataVersion(path.join(dir, 'options.txt'))
+        mcImportSources.push({ launcher: 'custom', name, dir, mcVersion: MinecraftImport.mcVersionFromDataVersion(dataVersion), loader: null, lastPlayed: null, sharedMods: 0 })
+    }
+    mcImportSourceDir = dir
+    renderImportSources()
+    await refreshImportItems()
+    await renderImportCustomList()
 }
 
 /**
@@ -1677,84 +1876,138 @@ async function refreshMinecraftImportSource(){
  */
 async function runMinecraftImportFromSettings(){
     const MinecraftImport = require('./assets/js/minecraftimport')
-    const q = (key, placeHolders) => Lang.queryJS(`settings.minecraftImport.${key}`, placeHolders)
     const button = document.getElementById('settingsImportButton')
     const resetButton = () => {
         button.disabled = false
         button.innerHTML = Lang.queryEJS('settings.importButton')
     }
 
-    const selection = {}
-    for(const item of MinecraftImport.ITEMS){
-        selection[item] = document.getElementById(`settingsImportCheck_${item}`).checked
-    }
-    if(!MinecraftImport.ITEMS.some(item => selection[item])){
-        showMinecraftImportMessage(q('noSelectionTitle'), q('noSelectionDesc'))
-        return
-    }
-
-    const info = await refreshMinecraftImportSource()
-    if(!MinecraftImport.ITEMS.some(item => selection[item] && info.found[item])){
-        showMinecraftImportMessage(q('nothingToImportTitle'), q('nothingToImportDesc'))
-        return
-    }
-
+    const info = mcImportSourceInfo
+    const items = info == null ? [] : MinecraftImport.ITEMS.filter(item => info.found[item.key] && mcImportSelection[item.key])
     const target = await getMinecraftImportTarget()
+    const plan = await MinecraftImport.planCustomImport(mcImportSourceDir, target.instanceDir, mcImportCustomPaths)
+    const customOk = plan.filter(e => e.blocked == null)
+    if(items.length === 0 && customOk.length === 0){
+        showMinecraftImportMessage(mcImportQuery('noSelectionTitle'), mcImportQuery('noSelectionDesc'))
+        return
+    }
+
     button.disabled = true
-    button.innerHTML = q('checking')
+    button.innerHTML = mcImportQuery('checking')
     const launcherProcRunning = typeof proc !== 'undefined' && proc != null && proc.exitCode == null
     if(launcherProcRunning || await MinecraftImport.isGameRunning(target.instanceDir)){
         resetButton()
-        showMinecraftImportMessage(q('gameRunningTitle'), q('gameRunningDesc', { server: escapeImportHtml(target.name) }))
+        showMinecraftImportMessage(mcImportQuery('gameRunningTitle'), mcImportQuery('gameRunningDesc', { server: escapeImportHtml(target.name) }))
         return
     }
+    resetButton()
 
-    const doImport = async () => {
+    // Confirmación con todo lo que va a entrar.
+    const source = mcImportSources.find(s => s.dir === mcImportSourceDir)
+    const sourceTitle = source != null ? importSourceTitle(source) : (mcImportSourceDir || '')
+    const lines = items.map(item => `<li>${mcImportQuery(`items.${item.key}`)}</li>`)
+        .concat(customOk.map(e => `<li>${escapeImportHtml(path.basename(e.src))} → ${escapeImportHtml(e.rel.replace(/\\/g, '/'))}</li>`))
+    let desc = `${mcImportQuery('summaryFrom', { source: escapeImportHtml(sourceTitle) })}<br>${mcImportQuery('summaryTo', { server: escapeImportHtml(target.name) })}`
+        + `<ul class="mcImportSummaryList">${lines.join('')}</ul>${mcImportQuery('confirmBackupNote')}`
+    if(items.some(i => i.key === 'options') && info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
+        desc += `<br><br>${mcImportQuery('newerVersionNote', { mc: escapeImportHtml(target.mcVersion) })}`
+    }
+
+    setOverlayContent(mcImportQuery('confirmTitle'), desc, mcImportQuery('confirmButton'), mcImportQuery('cancel'))
+    setOverlayHandler(async () => {
+        toggleOverlay(false)
         button.disabled = true
-        button.innerHTML = q('importing')
+        button.innerHTML = mcImportQuery('importing')
         try {
-            const results = await MinecraftImport.importSettings(mcImportSourceDir, target.instanceDir, selection)
-            showMinecraftImportMessage(q('summaryTitle'), buildMinecraftImportSummary(results, mcImportSourceDir, target.name))
+            const selection = {}
+            for(const item of items){
+                selection[item.key] = true
+            }
+            const results = await MinecraftImport.importSettings(mcImportSourceDir, target.instanceDir, selection, plan)
+            mcImportCustomPaths = []
+            await renderImportCustomList()
+            showMinecraftImportMessage(mcImportQuery('summaryTitle'), buildMinecraftImportSummary(results, sourceTitle, target.name))
         } catch(err) {
-            showMinecraftImportMessage(q('errorTitle'), q('errorDesc', { error: escapeImportHtml(err.message) }))
+            showMinecraftImportMessage(mcImportQuery('errorTitle'), mcImportQuery('errorDesc', { error: escapeImportHtml(err.message) }))
         } finally {
             resetButton()
         }
-    }
-
-    if(selection.options && info.found.options && info.dataVersion != null && info.dataVersion > MinecraftImport.TARGET_DATA_VERSION){
-        resetButton()
-        setOverlayContent(q('newerVersionTitle'), q('newerVersionDesc', { mc: target.mcVersion }), q('importAnyway'), q('cancel'))
-        setOverlayHandler(() => {
-            toggleOverlay(false)
-            doImport()
-        })
-        setDismissHandler(() => {
-            toggleOverlay(false)
-        })
-        toggleOverlay(true, true)
-        return
-    }
-    await doImport()
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+    })
+    toggleOverlay(true, true)
 }
 
 /**
  * Prepare the Minecraft settings import section of the Minecraft tab.
  */
 async function prepareMinecraftImport(){
+    const MinecraftImport = require('./assets/js/minecraftimport')
+    const { webUtils } = require('electron')
+    const win = remote.getCurrentWindow()
+
     document.getElementById('settingsImportSourceButton').onclick = async () => {
-        const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+        const res = await remote.dialog.showOpenDialog(win, {
             title: document.getElementById('settingsImportSourceButton').getAttribute('dialogTitle'),
             defaultPath: mcImportSourceDir || undefined,
             properties: ['openDirectory']
         })
         if(!res.canceled){
-            mcImportSourceDir = res.filePaths[0]
-            await refreshMinecraftImportSource()
+            await useImportSourceFolder(res.filePaths[0])
         }
     }
+    for(const [id, properties] of [['settingsImportPickFiles', ['openFile', 'multiSelections']], ['settingsImportPickFolder', ['openDirectory', 'multiSelections']]]){
+        const pick = document.getElementById(id)
+        pick.onclick = async () => {
+            const res = await remote.dialog.showOpenDialog(win, {
+                title: pick.getAttribute('dialogTitle'),
+                defaultPath: mcImportSourceDir || undefined,
+                properties
+            })
+            if(!res.canceled){
+                await addImportCustomPaths(res.filePaths)
+            }
+        }
+    }
+
+    const drop = document.getElementById('settingsImportDrop')
+    drop.ondragenter = e => {
+        e.preventDefault()
+        drop.setAttribute('drag', '')
+    }
+    drop.ondragover = e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+    }
+    drop.ondragleave = e => {
+        if(!drop.contains(e.relatedTarget)){
+            drop.removeAttribute('drag')
+        }
+    }
+    drop.ondrop = async e => {
+        e.preventDefault()
+        drop.removeAttribute('drag')
+        await addImportCustomPaths([...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)))
+    }
+
     document.getElementById('settingsImportButton').onclick = runMinecraftImportFromSettings
-    await refreshMinecraftImportSource()
+
+    // Detectar orígenes cada vez que se abren los ajustes (pudo instalar otro launcher o jugar en otra instancia).
+    const target = await getMinecraftImportTarget()
+    const custom = mcImportSources.filter(s => s.launcher === 'custom')
+    mcImportSources = (await MinecraftImport.detectSources(target)).map(s => ({ ...s, totalMods: target.modFiles.length }))
+    for(const c of custom){
+        if(!mcImportSources.some(s => s.dir === c.dir)){
+            mcImportSources.push(c)
+        }
+    }
+    if(mcImportSourceDir == null || !mcImportSources.some(s => s.dir === mcImportSourceDir)){
+        mcImportSourceDir = mcImportSources.length > 0 ? mcImportSources[0].dir : null
+    }
+    renderImportSources()
+    await refreshImportItems()
+    await renderImportCustomList()
 }
 
 async function prepareSettings(first = false) {
