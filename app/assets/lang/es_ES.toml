@@ -202,22 +202,17 @@ players = "JUGADORES"
 
 [js.landing.systemScan]
 checking = "Revisando el sistema.."
-noCompatibleJava = "No se encontró<br>un Java compatible"
-installJavaMessage = "Para iniciar Minecraft necesitas Java {major} de 64 bits. ¿Quieres que lo instalemos?"
-installJava = "Instalar Java"
-installJavaManually = "Instalar a mano"
 javaDownloadPrepare = "Preparando la descarga de Java.."
-javaDownloadFailureTitle = "Error al descargar Java"
-javaDownloadFailureText = "Revisa la consola (CTRL + Shift + i) para más detalles."
-javaRequired = "Se necesita Java<br>para jugar"
-javaRequiredMessage = 'Para iniciar se necesita una instalación válida de Java {major} x64.<br><br>Puedes descargarlo e instalarlo a mano desde <a href="https://adoptium.net/temurin/releases/">Adoptium Temurin</a>.'
-javaRequiredDismiss = "Entendido"
-javaRequiredCancel = "Volver"
+javaDownloadFailureTitle = "No pudimos descargar Java"
+javaDownloadFailureText = 'Minecraft necesita Java {major} y no pudimos descargarlo. Revisa tu conexión a internet e inténtalo de nuevo.<br><br>Si sigue fallando, puedes instalarlo a mano desde <a href="https://adoptium.net/temurin/releases/">Adoptium Temurin</a> (versión de 64 bits).'
+javaDownloadRetry = "Reintentar"
+javaDownloadCancel = "Cancelar"
 
 [js.landing.downloadJava]
+downloadingJava = "Descargando Java {major}"
 findJdkFailure = "No se encontró una distribución de OpenJDK."
 javaDownloadCorruptedError = "El JDK descargado tiene un hash incorrecto; puede que el archivo esté dañado."
-extractingJava = "Extrayendo Java"
+extractingJava = "Instalando Java"
 javaInstalled = "¡Java instalado!"
 
 [js.landing.dlAsync]

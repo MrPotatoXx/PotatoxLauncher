@@ -295,10 +295,14 @@ function showLaunchFailure(title, desc){
 
 /**
  * Asynchronously scan the system for valid Java installations.
- * 
- * @param {boolean} launchAfter Whether we should begin to launch after scanning. 
+ *
+ * If none is found, the required Java is downloaded into the launcher's data
+ * directory without asking: it does not install anything system-wide.
+ *
+ * @param {boolean} launchAfter Whether we should begin to launch after scanning.
+ * @param {boolean} allowDownload Whether Java may be downloaded if none is found.
  */
-async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
+async function asyncSystemScan(effectiveJavaOptions, launchAfter = true, allowDownload = true){
 
     setLaunchDetails(Lang.queryJS('landing.systemScan.checking'))
     toggleLaunchArea(true)
@@ -310,47 +314,21 @@ async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
     )
 
     if(jvmDetails == null) {
-        // If the result is null, no valid Java installation was found.
-        // Show this information to the user.
-        setOverlayContent(
-            Lang.queryJS('landing.systemScan.noCompatibleJava'),
-            Lang.queryJS('landing.systemScan.installJavaMessage', { 'major': effectiveJavaOptions.suggestedMajor }),
-            Lang.queryJS('landing.systemScan.installJava'),
-            Lang.queryJS('landing.systemScan.installJavaManually')
-        )
-        setOverlayHandler(() => {
-            setLaunchDetails(Lang.queryJS('landing.systemScan.javaDownloadPrepare'))
-            toggleOverlay(false)
-            
-            try {
-                downloadJava(effectiveJavaOptions, launchAfter)
-            } catch(err) {
-                loggerLanding.error('Unhandled error in Java Download', err)
-                showLaunchFailure(Lang.queryJS('landing.systemScan.javaDownloadFailureTitle'), Lang.queryJS('landing.systemScan.javaDownloadFailureText'))
-            }
-        })
-        setDismissHandler(() => {
-            $('#overlayContent').fadeOut(250, () => {
-                //$('#overlayDismiss').toggle(false)
-                setOverlayContent(
-                    Lang.queryJS('landing.systemScan.javaRequired', { 'major': effectiveJavaOptions.suggestedMajor }),
-                    Lang.queryJS('landing.systemScan.javaRequiredMessage', { 'major': effectiveJavaOptions.suggestedMajor }),
-                    Lang.queryJS('landing.systemScan.javaRequiredDismiss'),
-                    Lang.queryJS('landing.systemScan.javaRequiredCancel')
-                )
-                setOverlayHandler(() => {
-                    toggleLaunchArea(false)
-                    toggleOverlay(false)
-                })
-                setDismissHandler(() => {
-                    toggleOverlay(false, true)
-
-                    asyncSystemScan(effectiveJavaOptions, launchAfter)
-                })
-                $('#overlayContent').fadeIn(250)
-            })
-        })
-        toggleOverlay(true, true)
+        if(!allowDownload) {
+            // Se descargó, pero no aparece como válido.
+            showJavaDownloadFailure(effectiveJavaOptions, launchAfter)
+            return
+        }
+        loggerLanding.info(`No compatible Java found, downloading Java ${effectiveJavaOptions.suggestedMajor}.`)
+        try {
+            await downloadJava(effectiveJavaOptions)
+        } catch(err) {
+            loggerLanding.error('Unhandled error in Java Download', err)
+            remote.getCurrentWindow().setProgressBar(-1)
+            showJavaDownloadFailure(effectiveJavaOptions, launchAfter)
+            return
+        }
+        await asyncSystemScan(effectiveJavaOptions, launchAfter, false)
     } else {
         // Java installation found, use this to launch the game.
         const javaExec = javaExecFromRoot(jvmDetails.path)
@@ -371,10 +349,34 @@ async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
 
 }
 
-async function downloadJava(effectiveJavaOptions, launchAfter = true) {
+/**
+ * Tell the player that Java could not be downloaded, and offer to retry.
+ *
+ * @param {Object} effectiveJavaOptions The server's Java options.
+ * @param {boolean} launchAfter Whether to launch after a successful retry.
+ */
+function showJavaDownloadFailure(effectiveJavaOptions, launchAfter){
+    setOverlayContent(
+        Lang.queryJS('landing.systemScan.javaDownloadFailureTitle'),
+        Lang.queryJS('landing.systemScan.javaDownloadFailureText', { 'major': effectiveJavaOptions.suggestedMajor }),
+        Lang.queryJS('landing.systemScan.javaDownloadRetry'),
+        Lang.queryJS('landing.systemScan.javaDownloadCancel')
+    )
+    setOverlayHandler(() => {
+        toggleOverlay(false)
+        asyncSystemScan(effectiveJavaOptions, launchAfter)
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+        toggleLaunchArea(false)
+    })
+    toggleOverlay(true, true)
+}
 
-    // TODO Error handling.
-    // asset can be null.
+async function downloadJava(effectiveJavaOptions) {
+
+    setLaunchDetails(Lang.queryJS('landing.systemScan.javaDownloadPrepare'))
+
     const asset = await latestOpenJDK(
         effectiveJavaOptions.suggestedMajor,
         ConfigManager.getDataDirectory(),
@@ -384,6 +386,7 @@ async function downloadJava(effectiveJavaOptions, launchAfter = true) {
         throw new Error(Lang.queryJS('landing.downloadJava.findJdkFailure'))
     }
 
+    setLaunchDetails(Lang.queryJS('landing.downloadJava.downloadingJava', { 'major': effectiveJavaOptions.suggestedMajor }))
     let received = 0
     await downloadFile(asset.url, asset.path, ({ transferred }) => {
         received = transferred
@@ -394,7 +397,7 @@ async function downloadJava(effectiveJavaOptions, launchAfter = true) {
     if(received != asset.size) {
         loggerLanding.warn(`Java Download: Expected ${asset.size} bytes but received ${received}`)
         if(!await validateLocalFile(asset.path, asset.algo, asset.hash)) {
-            log.error(`Hashes do not match, ${asset.id} may be corrupted.`)
+            loggerLanding.error(`Hashes do not match, ${asset.id} may be corrupted.`)
             // Don't know how this could happen, but report it.
             throw new Error(Lang.queryJS('landing.downloadJava.javaDownloadCorruptedError'))
         }
@@ -417,21 +420,20 @@ async function downloadJava(effectiveJavaOptions, launchAfter = true) {
         setLaunchDetails(eLStr + dotStr)
     }, 750)
 
-    const newJavaExec = await extractJdk(asset.path)
-
-    // Extraction complete, remove the loading from the OS progress bar.
-    remote.getCurrentWindow().setProgressBar(-1)
+    let newJavaExec
+    try {
+        newJavaExec = await extractJdk(asset.path)
+    } finally {
+        clearInterval(extractListener)
+        // Extraction complete, remove the loading from the OS progress bar.
+        remote.getCurrentWindow().setProgressBar(-1)
+    }
 
     // Extraction completed successfully.
     ConfigManager.setJavaExecutable(ConfigManager.getSelectedServer(), newJavaExec)
     ConfigManager.save()
 
-    clearInterval(extractListener)
     setLaunchDetails(Lang.queryJS('landing.downloadJava.javaInstalled'))
-
-    // TODO Callback hell
-    // Refactor the launch functions
-    asyncSystemScan(effectiveJavaOptions, launchAfter)
 
 }
 

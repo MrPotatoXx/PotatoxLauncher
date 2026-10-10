@@ -1,12 +1,5 @@
-### Arreglamos la vista 3D de tu skin
+### Java se instala solo
 
-En **Ajustes → Skin y capa** el personaje en 3D no se mostraba y salía un error. Ya está arreglado.
+Si tu PC no tiene la versión de Java que necesita Minecraft, el launcher ya no te pregunta nada: la descarga e instala sola la primera vez que aprietas **Jugar**, y verás el avance abajo. No toca nada más de tu PC; queda guardada dentro del launcher.
 
-### Cambia tu skin y tu capa desde el launcher
-
-Si todavía no lo probaste: entra a **Ajustes → Skin y capa** para ver a tu personaje en 3D, probar skins antes de ponértelas y elegir cualquiera de las capas de tu cuenta.
-
-- Agrega una skin arrastrando la imagen o eligiéndola desde tu PC.
-- Copia la skin de otro jugador escribiendo su nombre.
-- Tus skins quedan guardadas en el launcher para volver a usarlas cuando quieras. Si usabas el launcher oficial, puedes traer las skins que tenías ahí.
-- Nada cambia en tu cuenta hasta que aprietas **Guardar en mi cuenta**.
+Si la descarga falla (por ejemplo, sin internet), te avisamos y puedes reintentar con un clic.
