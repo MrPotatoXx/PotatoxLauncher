@@ -1,5 +1,14 @@
-### Java se instala solo
+### El reino cobra vida
 
-Si tu PC no tiene la versión de Java que necesita Minecraft, el launcher ya no te pregunta nada: la descarga e instala sola la primera vez que aprietas **Jugar**, y verás el avance abajo. No toca nada más de tu PC; queda guardada dentro del launcher.
+El launcher ahora te cuenta lo que pasa en las Tierras Malditas antes de entrar:
 
-Si la descarga falla (por ejemplo, sin internet), te avisamos y puedes reintentar con un clic.
+- **La voz de Aldric:** arriba aparecen las frases del Cronista sobre lo que ocurre en el reino.
+- **Prueba de Aldric:** si hay una Prueba en curso, la verás arriba como una barra de jefe con el tiempo que queda.
+- **Fragmentos de la corona:** alrededor del logo brillan en rojo los fragmentos recuperados. Pasa el mouse por encima para ver qué jefe hay que derrotar y quién lo consiguió.
+- **Luna de Sangre:** cuando la luna sangra, el launcher se tiñe de rojo para avisarte.
+- **Quién está jugando:** junto a **Jugar** ves las cabezas de los que están conectados. Pasa el mouse para ver su título.
+- **Crónicas:** el antiguo botón Noticias ahora se llama Crónicas y muestra lo último que pasó en el reino.
+
+### Nuevo look
+
+Letras más grandes y fáciles de leer, un botón **Jugar** nuevo y unas brasas que flotan en el fondo.
