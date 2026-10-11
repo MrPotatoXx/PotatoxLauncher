@@ -1,17 +1,19 @@
 [ejs.app]
 disclaimer = "NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG NI MICROSOFT."
+lunaAnuncio = "LA LUNA SANGRA"
 
 [ejs.landing]
 updateAvailableTooltip = "Actualización disponible"
 usernamePlaceholder = "Usuario"
 usernameEditButton = "Editar"
 settingsTooltip = "Ajustes"
-serverStatus = "SERVIDOR"
-serverStatusPlaceholder = "DESCONECTADO"
-mojangStatus = "ESTADO DE MOJANG"
+mojangStatus = "Mojang"
+aldricFirma = "— Aldric, el Cronista"
+lunaRotulo = "La Luna Sangra"
+cronicasTitle = "Crónicas del reino"
 mojangStatusTooltipTitle = "Servicios"
 mojangStatusNETitle = "No&nbsp;esenciales"
-newsButton = "NOTICIAS"
+newsButton = "CRÓNICAS"
 launchButton = "JUGAR"
 launchButtonPlaceholder = "&#8226; Ningún servidor seleccionado"
 launchDetails = "Espera un momento.."
@@ -195,10 +197,18 @@ noAccountSelected = "Ninguna cuenta seleccionada"
 noSelection = "Ningún servidor seleccionado"
 loading = "Cargando.."
 
-[js.landing.serverStatus]
-server = "SERVIDOR"
-offline = "DESCONECTADO"
-players = "JUGADORES"
+[js.landing.reino]
+pruebaTitulo = "Prueba de Aldric: {texto}"
+gemaDerrotando = "derrotando a {jefe}"
+gemaRecuperado = "Recuperado por {quien}"
+gemaPerdido = "Aún perdido"
+cronicasVacio = "Las crónicas guardan silencio por ahora."
+cronicasSinDatos = "Las crónicas no llegan hasta aquí. Lo intentaremos de nuevo en un minuto."
+haceUnMomento = "hace un momento"
+haceMinutos = "hace {n} min"
+haceHoras = "hace {n} h"
+ayer = "ayer"
+haceDias = "hace {n} días"
 
 [js.landing.systemScan]
 checking = "Revisando el sistema.."

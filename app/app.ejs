@@ -5,6 +5,7 @@
     <script src="./assets/js/scripts/uicore.js"></script>
     <script src="./assets/js/scripts/uibinder.js"></script>
     <link type="text/css" rel="stylesheet" href="./assets/css/launcher.css">
+    <link type="text/css" rel="stylesheet" href="./assets/css/reino.css">
     <style>
         body {
             /*background: url('assets/images/backgrounds/<%=bkid%>.jpg') no-repeat center center fixed;*/
@@ -27,6 +28,11 @@
     </style>
 </head>
 <body bkid="<%=bkid%>">
+    <!-- Capas del ambiente (ambiente.js, reino.js, reino.css). -->
+    <div id="fondoReino"></div>
+    <canvas id="ambienteBrasas"></canvas>
+    <div id="lunaVelo"></div>
+    <div id="lunaAnuncio"><%- lang('app.lunaAnuncio') %></div>
     <%- include('frame') %>
     <div id="main">
         <%- include('welcome') %>
@@ -45,5 +51,6 @@
             </div>
         </div>
     </div>
+    <script src="./assets/js/scripts/ambiente.js"></script>
 </body>
 </html>

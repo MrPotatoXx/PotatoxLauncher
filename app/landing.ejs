@@ -3,10 +3,24 @@
         <div id="left">
             <div id="image_seal_container">
                 <img id="image_seal" src="assets/images/SealCircle.png"/>
+                <!-- Gemas de los fragmentos de la corona (reino.js). -->
+                <div id="coronaGemas"></div>
                 <div id="updateAvailableTooltip"><%- lang('landing.updateAvailableTooltip') %></div>
             </div>
         </div>
         <div id="content">
+            <!-- El reino vivo: lo llena reino.js con https://mc.potatox.me/reino.json -->
+            <div id="reinoEscena">
+                <div id="pruebaBarra" style="display: none;">
+                    <div id="pruebaTexto"></div>
+                    <div id="pruebaRiel"><div id="pruebaLleno"></div></div>
+                </div>
+                <div id="aldricVoz" style="display: none;">
+                    <div id="aldricFrase"></div>
+                    <div id="aldricFirma"><%- lang('landing.aldricFirma') %></div>
+                </div>
+                <div id="lunaRotulo"><%- lang('landing.lunaRotulo') %></div>
+            </div>
         </div>
         <div id="right">
             <div id="rightContainer">
@@ -96,11 +110,6 @@
         <div id="left">
             <div class="bot_wrapper">
                 <div id="content">
-                    <div id="server_status_wrapper">
-                        <span class="bot_label" id="landingPlayerLabel"><%- lang('landing.serverStatus') %></span>
-                        <span id="player_count"><%- lang('landing.serverStatusPlaceholder') %></span>
-                    </div>
-                    <div class="bot_divider"></div>
                     <div id="mojangStatusWrapper">
                         <span class="bot_label"><%- lang('landing.mojangStatus') %></span>
                         <span id="mojang_status_icon">&#8226;</span>
@@ -142,9 +151,13 @@
         <div id="right">
             <div class="bot_wrapper">
                 <div id="launch_content">
-                    <button id="launch_button"><%- lang('landing.launchButton') %></button>
+                    <button id="launch_button" data-brasas><%- lang('landing.launchButton') %></button>
                     <div class="bot_divider"></div>
-                    <button id="server_selection_button" class="bot_label"><%- lang('landing.launchButtonPlaceholder') %></button>
+                    <div id="servidorBloque">
+                        <button id="server_selection_button" class="bot_label"><%- lang('landing.launchButtonPlaceholder') %></button>
+                        <!-- Cabezas de los jugadores conectados (reino.js). -->
+                        <div id="conectadosCabezas"></div>
+                    </div>
                 </div>
                 <div id="launch_details">
                     <div id="launch_details_left">
@@ -160,6 +173,11 @@
         </div>
     </div>
     <div id="newsContainer">
+        <!-- Crónicas: la actividad del reino (reino.js). El RSS de Helios, si hay, va debajo. -->
+        <div id="cronicasPanel">
+            <div id="cronicasTitulo"><%- lang('landing.cronicasTitle') %></div>
+            <div id="cronicasLista"></div>
+        </div>
         <div id="newsContent" article="-1" style="display: none;">
             <div id="newsStatusContainer">
                 <div id="newsStatusContent">
@@ -217,5 +235,8 @@
             </div>
         </div>
     </div>
+    <!-- Tooltip compartido de gemas y cabezas. -->
+    <div id="reinoTooltip"></div>
     <script src="./assets/js/scripts/landing.js"></script>
+    <script src="./assets/js/scripts/reino.js"></script>
 </div>

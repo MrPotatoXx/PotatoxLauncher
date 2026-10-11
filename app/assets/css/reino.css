@@ -1,0 +1,947 @@
+/*******************************************************************************
+ *                                                                             *
+ * Tierras Malditas                                                            *
+ *                                                                             *
+ * Identidad propia sobre la base de Helios (se carga después de launcher.css).*
+ * Oscuro pero legible: texto claro y cálido, sombras amplias y degradados     *
+ * difusos detrás de los textos; dorado y carmesí solo como acento.            *
+ *                                                                             *
+ ******************************************************************************/
+
+:root {
+    --negro: #0B0708;
+    --carmesi: #7E1016;
+    --carmesi-vivo: #B3202A;
+    --sangre: #E0403F;
+    --dorado: #D4AF37;
+    --dorado-claro: #F0D78C;
+    --texto: #F2E6D0;
+    --texto-2: #BFAF95;
+
+    --sombra-texto: 0 0 8px rgba(0, 0, 0, 0.9), 0 2px 3px rgba(0, 0, 0, 0.8);
+    --brillo-dorado: 0 0 10px rgba(240, 215, 140, 0.75);
+    --fuente-titulo: 'Cinzel', 'Times New Roman', serif;
+    --fuente-texto: 'Inter', 'Segoe UI', sans-serif;
+    --fuente-pixel: 'Pixelify Sans', monospace;
+}
+
+/*******************************************************************************
+ * Fuentes (empaquetadas, nada externo en runtime; licencias OFL al lado)
+ ******************************************************************************/
+
+@font-face { font-family: 'Cinzel'; font-weight: 600; src: url('../fonts/Cinzel-600.woff2') format('woff2'); }
+@font-face { font-family: 'Cinzel'; font-weight: 700; src: url('../fonts/Cinzel-700.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('../fonts/Inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 500; src: url('../fonts/Inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url('../fonts/Inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Pixelify Sans'; font-weight: 500; src: url('../fonts/PixelifySans-500.woff2') format('woff2'); }
+
+body, button, input, select, textarea {
+    font-family: var(--fuente-texto);
+}
+body, button {
+    color: var(--texto);
+}
+
+/*******************************************************************************
+ * Fondo con parallax, brasas y Luna de Sangre
+ ******************************************************************************/
+
+/* Más grande que la ventana para que el parallax nunca muestre los bordes. */
+#fondoReino {
+    position: fixed;
+    inset: -16px;
+    z-index: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 1s ease;
+    will-change: transform;
+}
+#fondoReino[style*="background-image"] {
+    opacity: 1;
+}
+
+#ambienteBrasas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Velo rojo con viñeta y pulso lento. */
+#lunaVelo {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 3s ease;
+    background:
+        radial-gradient(ellipse at center, rgba(120, 0, 0, 0) 35%, rgba(110, 0, 0, 0.55) 100%),
+        rgba(150, 10, 10, 0.14);
+}
+#lunaVelo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 30%, rgba(200, 20, 20, 0.22), rgba(200, 20, 20, 0) 65%);
+    animation: lunaPulso 7s ease-in-out infinite;
+}
+body[luna] #lunaVelo {
+    opacity: 1;
+}
+@keyframes lunaPulso {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+}
+
+/* Rótulo grande que aparece al empezar la Luna de Sangre. */
+#lunaAnuncio {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 40%;
+    z-index: 450;
+    text-align: center;
+    pointer-events: none;
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 54px;
+    letter-spacing: 10px;
+    color: #FF5A4E;
+    text-shadow: 0 0 24px rgba(255, 40, 40, 0.8), 0 0 8px rgba(0, 0, 0, 0.95), 0 3px 4px rgba(0, 0, 0, 0.9);
+    opacity: 0;
+}
+#lunaAnuncio[mostrar] {
+    animation: lunaAnuncio 3.8s ease forwards;
+}
+@keyframes lunaAnuncio {
+    0% { opacity: 0; transform: scale(0.9); letter-spacing: 4px; }
+    20% { opacity: 1; transform: scale(1); letter-spacing: 10px; }
+    70% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: translateY(-120px) scale(0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #lunaVelo::after,
+    #launch_button {
+        animation: none !important;
+    }
+}
+
+/*******************************************************************************
+ * Legibilidad general de la vista principal
+ ******************************************************************************/
+
+#landingContainer {
+    color: var(--texto);
+}
+
+/* Degradado oscuro difuso detrás de la barra inferior. */
+#landingContainer > #lower {
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0) 100%);
+}
+
+.bot_label {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--texto);
+    text-shadow: var(--sombra-texto);
+}
+.bot_divider {
+    background: rgba(212, 175, 55, 0.35);
+    margin-left: 16px;
+    margin-right: 16px;
+}
+
+/* Más lugar a la derecha para JUGAR, servidor y cabezas, con CRÓNICAS centrado. */
+#landingContainer > #lower > #left {
+    width: 38%;
+    justify-content: flex-start;
+}
+#landingContainer > #lower > #center {
+    width: 24%;
+}
+#landingContainer > #lower > #right {
+    width: 38%;
+    justify-content: flex-end;
+    padding-right: 28px;
+    box-sizing: border-box;
+}
+
+/*******************************************************************************
+ * Logo, avatar, nombre e iconos
+ ******************************************************************************/
+
+/* El logo conserva su diseño; solo un halo dorado para despegarlo del fondo. */
+#image_seal {
+    filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.4)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+/* Marco dorado fino para el avatar. */
+#avatarContainer {
+    border: 1.5px solid var(--dorado);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15), 0 0 12px rgba(0, 0, 0, 0.85);
+}
+#avatarOverlay {
+    font-family: var(--fuente-titulo);
+    font-size: 13px;
+    color: var(--texto);
+}
+
+#user_text {
+    font-family: var(--fuente-titulo);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--texto);
+    text-shadow: 0 0 18px rgba(0, 0, 0, 0.95), var(--sombra-texto);
+}
+
+/* Iconos de ajustes y enlaces: mismo diseño, con halo dorado. */
+.mediaSVG {
+    filter: drop-shadow(0 0 3px rgba(212, 175, 55, 0.55)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+.mediaSVG:hover,
+.mediaURL:focus .mediaSVG,
+.mediaButton:focus .mediaSVG {
+    fill: var(--dorado-claro);
+    filter: drop-shadow(0 0 6px rgba(240, 215, 140, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+.mediaButton:hover #settingsSVG,
+.mediaButton:focus #settingsSVG {
+    fill: var(--dorado-claro);
+    stroke: var(--dorado-claro);
+}
+.mediaDivider {
+    background: rgba(212, 175, 55, 0.6);
+}
+
+/* Tooltips oscuros y legibles. */
+#settingsTooltip,
+#updateAvailableTooltip {
+    width: auto;
+    height: auto;
+    padding: 4px 10px;
+    white-space: nowrap;
+    font-family: var(--fuente-texto);
+    font-size: 13px;
+    color: var(--texto);
+    background-color: rgba(14, 9, 10, 0.94);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+}
+#settingsTooltip::after {
+    border-color: transparent transparent transparent rgba(212, 175, 55, 0.5);
+}
+#updateAvailableTooltip::after {
+    border-color: transparent transparent rgba(212, 175, 55, 0.5) transparent;
+}
+
+/*******************************************************************************
+ * Corona de fragmentos alrededor del logo
+ ******************************************************************************/
+
+#coronaGemas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.gema {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: linear-gradient(135deg, #4A3A36 0%, #1E1515 100%);
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+    pointer-events: auto;
+    cursor: default;
+    outline: none;
+    transition: transform 0.2s ease;
+}
+.gema[ok] {
+    background: linear-gradient(135deg, #FF8A80 0%, #E01E2B 45%, #7A0010 100%);
+    border-color: #FFB4A8;
+    box-shadow: 0 0 7px 2px rgba(255, 40, 40, 0.75);
+}
+.gema:hover,
+.gema:focus {
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.45);
+    border-color: var(--dorado-claro);
+}
+
+/* Tooltip compartido de gemas y cabezas. */
+#reinoTooltip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    visibility: hidden;
+    z-index: 600;
+    max-width: 260px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(14, 9, 10, 0.95);
+    border: 1px solid rgba(212, 175, 55, 0.55);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--texto);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+#reinoTooltip[visible] {
+    opacity: 1;
+    visibility: visible;
+}
+.reinoTooltipTitulo {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--dorado-claro);
+}
+.reinoTooltipOk {
+    color: #FF8A80;
+    font-weight: 600;
+}
+.reinoTooltipTenue {
+    color: var(--texto-2);
+    font-style: italic;
+}
+
+/*******************************************************************************
+ * Escena: Prueba de Aldric, voz de Aldric y rótulo de la luna
+ ******************************************************************************/
+
+#landingContainer > #upper > #content {
+    justify-content: center;
+}
+/* La voz queda debajo de la altura del avatar para no tapar el nombre del jugador. */
+#reinoEscena {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 136px;
+    width: 100%;
+    max-width: 600px;
+}
+
+/* Barra en el espíritu de la bossbar de Minecraft. */
+#pruebaBarra {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+#pruebaTexto {
+    font-family: var(--fuente-pixel);
+    font-weight: 500;
+    font-size: 16px;
+    color: #FFFFFF;
+    text-shadow: 2px 2px 0 #3F3F3F, 0 0 8px rgba(0, 0, 0, 0.9);
+    text-align: center;
+    max-width: 560px;
+}
+#pruebaTexto[tiempo]::after {
+    content: '  ' attr(tiempo);
+    white-space: pre;
+    color: #FFF3A0;
+}
+#pruebaBarra[morada] #pruebaTexto[tiempo]::after {
+    color: #E7B8FF;
+}
+#pruebaRiel {
+    width: 364px;
+    height: 10px;
+    background: #2B2410;
+    outline: 2px solid #000;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+    position: relative;
+    overflow: hidden;
+}
+#pruebaLleno {
+    height: 100%;
+    width: 100%;
+    background:
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px),
+        #F3D33B;
+    transition: width 1s linear;
+}
+#pruebaRiel::after {
+    /* Muescas como en la bossbar. */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(to right, transparent 0 34px, rgba(0, 0, 0, 0.35) 34px 36px);
+}
+#pruebaBarra[morada] #pruebaRiel {
+    background: #22102B;
+}
+#pruebaBarra[morada] #pruebaLleno {
+    background:
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0 2px, transparent 2px),
+        #B748E6;
+}
+
+/* Voz de Aldric: sin caja, con un degradado difuso detrás. */
+#aldricVoz {
+    position: relative;
+    text-align: center;
+    max-width: 560px;
+    padding: 6px 20px;
+    transition: opacity 0.3s ease;
+}
+#aldricVoz::before {
+    content: '';
+    position: absolute;
+    inset: -26px -70px;
+    z-index: -1;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.35) 45%, rgba(0, 0, 0, 0) 72%);
+    pointer-events: none;
+}
+#aldricVoz[apagada] {
+    opacity: 0;
+}
+#aldricFrase {
+    font-family: var(--fuente-titulo);
+    font-weight: 600;
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--dorado-claro);
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.45), var(--sombra-texto);
+    min-height: 28px;
+}
+#aldricFirma {
+    margin-top: 6px;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--texto-2);
+    text-shadow: var(--sombra-texto);
+}
+
+/* Rótulo pequeño que queda durante la Luna de Sangre. */
+#lunaRotulo {
+    margin-top: 10px;
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #FF6B5E;
+    text-shadow: 0 0 12px rgba(255, 40, 40, 0.7), var(--sombra-texto);
+    opacity: 0;
+    transition: opacity 0.8s ease 2.6s;
+}
+body[luna] #lunaRotulo {
+    opacity: 1;
+}
+
+/*******************************************************************************
+ * Barra inferior: Mojang, Crónicas, JUGAR, servidor y cabezas
+ ******************************************************************************/
+
+#mojangStatusWrapper .bot_label {
+    font-weight: 500;
+    color: var(--texto-2);
+}
+#mojang_status_icon {
+    font-size: 24px;
+    margin-left: 8px;
+    position: relative;
+    top: -4px;
+}
+#mojangStatusTooltip {
+    transform: none;
+    margin-left: 0;
+    left: -12px;
+    width: 200px;
+    font-family: var(--fuente-texto);
+    font-size: 13px;
+    background-color: rgba(14, 9, 10, 0.95);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+}
+#mojangStatusTooltip:after {
+    left: 82px;
+    border-color: rgba(212, 175, 55, 0.5) transparent transparent transparent;
+}
+#mojangStatusTooltipTitle {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    color: var(--dorado-claro);
+}
+.mojangStatusName,
+#mojangStatusNETitle {
+    font-size: 13px;
+}
+.mojangStatusNEBar {
+    background: rgba(212, 175, 55, 0.4);
+}
+
+/* CRÓNICAS. */
+#newsButtonText {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 3px;
+    color: var(--texto);
+    text-shadow: var(--sombra-texto);
+}
+#newsButton:hover #newsButtonText,
+#newsButton:focus #newsButtonText {
+    color: var(--dorado-claro);
+    text-shadow: var(--brillo-dorado), var(--sombra-texto);
+}
+#newsButton:hover #newsButtonSVG,
+#newsButton:focus #newsButtonSVG {
+    -webkit-filter: drop-shadow(0px 0px 3px var(--dorado-claro));
+}
+#newsButtonAlert {
+    background: var(--sangre);
+    width: 7px;
+    height: 7px;
+}
+
+/* JUGAR, servidor y cabezas. */
+#landingContainer > #lower > #right #launch_content {
+    top: 14px;
+    align-items: center;
+}
+#servidorBloque {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+}
+#server_selection_button {
+    font-family: var(--fuente-titulo);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    line-height: 20px;
+    white-space: nowrap;
+    color: var(--texto);
+    text-shadow: var(--sombra-texto);
+}
+#server_selection_button:hover,
+#server_selection_button:focus {
+    color: var(--dorado-claro);
+    text-shadow: var(--brillo-dorado), var(--sombra-texto);
+}
+#conectadosCabezas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 170px;
+}
+.cabeza {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #AAAAAA;
+    border-radius: 3px;
+    image-rendering: pixelated;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+    outline: none;
+}
+.cabeza:hover,
+.cabeza:focus {
+    box-shadow: 0 0 8px rgba(240, 215, 140, 0.8);
+}
+
+/* JUGAR: placa carmesí oscuro con borde dorado y brillo que late lento. */
+#launch_button {
+    position: relative;
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 21px;
+    letter-spacing: 4px;
+    color: #F6EAD3;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.5);
+    padding: 7px 20px 7px 24px;
+    border: 1.5px solid var(--dorado);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #A3161E 0%, #6B0D12 100%);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 12px rgba(179, 32, 42, 0.45), 0 0 5px rgba(212, 175, 55, 0.3);
+    transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+#launch_button::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 5px;
+    pointer-events: none;
+}
+#launch_button:hover,
+#launch_button:focus {
+    filter: brightness(1.15);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6), var(--brillo-dorado);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 24px rgba(179, 32, 42, 0.8), 0 0 12px rgba(240, 215, 140, 0.6);
+    transform: translateY(-1px);
+}
+#launch_button:active {
+    color: #F6EAD3;
+    filter: brightness(0.95);
+    transform: none;
+}
+#launch_button:disabled {
+    color: rgba(242, 230, 208, 0.5);
+    background: linear-gradient(180deg, #3A2626 0%, #241818 100%);
+    border-color: rgba(212, 175, 55, 0.35);
+    filter: none;
+    box-shadow: none;
+}
+body[luna] #launch_button:not(:disabled) {
+    animation: jugarLatidoLuna 1.4s ease-in-out infinite;
+}
+@keyframes jugarLatidoLuna {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 40, 40, 0.55); }
+    50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 32px rgba(255, 40, 40, 0.95), 0 0 10px rgba(212, 175, 55, 0.5); }
+}
+
+/* Brasas al pasar el mouse (ambiente.js). */
+.brasa {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #FFB347;
+    box-shadow: 0 0 6px 1px rgba(255, 120, 40, 0.9);
+    pointer-events: none;
+    opacity: 0;
+    animation: brasaSube 1s ease-out forwards;
+}
+@keyframes brasaSube {
+    0% { opacity: 0; transform: translate(0, 0) scale(1); }
+    15% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); background: #E0403F; }
+}
+
+/* Descargando: porcentaje, barra y detalle. */
+#landingContainer > #lower > #right #launch_details {
+    top: 18px;
+    align-items: center;
+}
+#launch_progress_label {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 21px;
+    color: var(--dorado-claro);
+    text-shadow: var(--sombra-texto);
+    min-width: 62px;
+    max-width: 62px;
+}
+#launch_progress[value] {
+    height: 7px;
+    width: 230px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.55);
+}
+#launch_progress[value]::-webkit-progress-value {
+    background: linear-gradient(90deg, var(--carmesi), var(--carmesi-vivo) 60%, var(--dorado));
+    border-radius: 999px;
+    box-shadow: 0 0 8px rgba(179, 32, 42, 0.7);
+    transition: width 0.3s ease;
+}
+#launch_details_text {
+    margin-top: 6px;
+    max-width: 230px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--texto-2);
+    text-shadow: var(--sombra-texto);
+}
+
+/*******************************************************************************
+ * Crónicas (panel de noticias)
+ ******************************************************************************/
+
+#landingContainer > #upper,
+#landingContainer > #lower > #left,
+#landingContainer > #lower > #center,
+#landingContainer > #lower > #center #content,
+#landingContainer > #lower > #right,
+#newsContainer {
+    transition-duration: 0.7s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+#newsContainer {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+}
+#cronicasPanel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(720px, 86%);
+    max-height: 74vh;
+    margin-bottom: 26px;
+    -webkit-user-select: initial;
+}
+#newsContainer[rss] #cronicasPanel {
+    max-height: 32vh;
+    margin-bottom: 10px;
+}
+#newsContainer[rss] #newsContent {
+    height: 48vh;
+}
+#newsContainer:not([rss]) #newsContent {
+    display: none !important;
+}
+#cronicasTitulo {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 21px;
+    letter-spacing: 2px;
+    text-align: center;
+    color: var(--dorado-claro);
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.35), var(--sombra-texto);
+    margin-bottom: 10px;
+}
+#cronicasTitulo::before,
+#cronicasTitulo::after {
+    content: '';
+    display: inline-block;
+    width: 60px;
+    height: 1px;
+    margin: 0 14px;
+    vertical-align: middle;
+    background: linear-gradient(90deg, transparent, var(--dorado));
+}
+#cronicasTitulo::after {
+    background: linear-gradient(90deg, var(--dorado), transparent);
+}
+#cronicasLista {
+    overflow-y: auto;
+    padding: 0 10px;
+}
+#cronicasLista::-webkit-scrollbar {
+    width: 3px;
+}
+#cronicasLista::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.5);
+    border-radius: 3px;
+}
+.cronica {
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+    padding: 9px 4px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.14);
+}
+.cronicaFecha {
+    flex-shrink: 0;
+    width: 110px;
+    text-align: right;
+    font-size: 13px;
+    color: rgba(212, 175, 55, 0.85);
+    text-shadow: var(--sombra-texto);
+}
+.cronicaTexto {
+    font-size: 14.5px;
+    line-height: 1.45;
+    color: var(--texto);
+    text-shadow: var(--sombra-texto);
+}
+.cronica[tipo="sale"] .cronicaTexto {
+    color: var(--texto-2);
+}
+.cronicaVacia {
+    text-align: center;
+    font-size: 14px;
+    font-style: italic;
+    color: var(--texto-2);
+    text-shadow: var(--sombra-texto);
+    padding: 12px;
+}
+
+/* Artículos RSS de Helios (si hay feed), con la misma legibilidad. */
+#newsArticleTitle {
+    font-family: var(--fuente-titulo);
+    color: var(--texto);
+}
+#newsArticleContentScrollable {
+    font-size: 14px;
+    line-height: 1.5;
+}
+#newsArticleContentScrollable a {
+    color: var(--dorado-claro);
+}
+#newsArticleDate,
+#newsArticleAuthor,
+#newsArticleComments,
+#newsNavigationStatus {
+    font-size: 13px;
+}
+.newsErrorContent {
+    font-family: var(--fuente-titulo);
+    text-shadow: var(--sombra-texto);
+}
+#newsErrorRetry {
+    font-size: 14px;
+    color: var(--dorado-claro);
+}
+
+/*******************************************************************************
+ * Avisos (overlay), selección de servidor y cuenta
+ ******************************************************************************/
+
+#overlayContainer {
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0.5) 100%);
+}
+#overlayContent {
+    width: 380px;
+}
+#overlayTitle,
+#serverSelectHeader,
+#accountSelectHeader {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--dorado-claro);
+    text-shadow: var(--sombra-texto);
+}
+#overlayDesc {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--texto);
+}
+#overlayContent a {
+    color: var(--dorado-claro);
+}
+#overlayAcknowledge,
+#serverSelectConfirm,
+#accountSelectConfirm {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: #F6EAD3;
+    background: linear-gradient(180deg, #A3161E 0%, #6B0D12 100%);
+    border: 1px solid var(--dorado);
+    border-radius: 6px;
+    padding: 6px 20px;
+    min-height: 0;
+}
+#overlayAcknowledge:hover,
+#overlayAcknowledge:focus,
+#serverSelectConfirm:hover,
+#serverSelectConfirm:focus,
+#accountSelectConfirm:hover,
+#accountSelectConfirm:focus {
+    box-shadow: 0 0 14px rgba(240, 215, 140, 0.6);
+    filter: brightness(1.12);
+}
+#overlayAcknowledge:active,
+#serverSelectConfirm:active,
+#accountSelectConfirm:active {
+    color: #F6EAD3;
+    border-color: var(--dorado);
+}
+#overlayDismiss,
+#serverSelectCancel,
+#accountSelectCancel {
+    font-size: 13px;
+    color: var(--texto-2);
+}
+#overlayDismiss:hover,
+#overlayDismiss:focus,
+#serverSelectCancel:hover,
+#serverSelectCancel:focus,
+#accountSelectCancel:hover,
+#accountSelectCancel:focus {
+    color: var(--dorado-claro);
+}
+.serverListing,
+.accountListing {
+    background: rgba(14, 9, 10, 0.7);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 6px;
+}
+.serverListing[selected],
+.accountListing[selected] {
+    border-color: var(--dorado);
+}
+.serverListingImg {
+    border-color: var(--dorado);
+}
+.serverListingName {
+    font-family: var(--fuente-titulo);
+    font-size: 15px;
+}
+.serverListingDescription,
+.serverListingVersion,
+.serverListingRevision,
+.serverListingStarTooltip {
+    font-size: 13px;
+    line-height: 1.3;
+}
+.serverListingDescription {
+    font-weight: 500;
+    color: var(--texto-2);
+}
+.serverListingVersion {
+    height: auto;
+    padding: 0 4px;
+}
+.serverListing {
+    padding: 8px 10px 8px 4px;
+    align-items: flex-start;
+}
+.serverListingDetails {
+    height: auto;
+    gap: 4px;
+}
+#serverSelectListScrollable,
+#accountSelectListScrollable {
+    overflow-y: auto;
+}
+#serverSelectList,
+#accountSelectList {
+    min-height: 0;
+}
+
+/*******************************************************************************
+ * Títulos de ajustes, bienvenida y login
+ ******************************************************************************/
+
+#settingsNavHeaderText,
+.settingsTabHeaderText,
+#welcomeHeader,
+.loginOptionsMainContent h2,
+#waitingTextContainer h2,
+#loginSubheader {
+    font-family: var(--fuente-titulo);
+    font-weight: 700;
+}
+.settingsTabHeaderDesc {
+    font-size: 13px;
+    color: var(--texto-2);
+}
+.settingsNavItem[selected],
+#settingsNavDone:hover,
+#settingsNavDone:focus {
+    color: var(--dorado-claro);
+}
+#welcomeDisclaimer {
+    font-size: 13px;
+    color: var(--texto-2);
+    opacity: 1;
+    text-shadow: var(--sombra-texto);
+}

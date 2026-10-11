@@ -1,17 +1,19 @@
 [ejs.app]
 disclaimer = "NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT."
+lunaAnuncio = "THE MOON BLEEDS"
 
 [ejs.landing]
 updateAvailableTooltip = "Update Available"
 usernamePlaceholder = "Username"
 usernameEditButton = "Edit"
 settingsTooltip = "Settings"
-serverStatus = "SERVER"
-serverStatusPlaceholder = "OFFLINE"
-mojangStatus = "MOJANG STATUS"
+mojangStatus = "Mojang"
+aldricFirma = "— Aldric, the Chronicler"
+lunaRotulo = "The Moon Bleeds"
+cronicasTitle = "Chronicles of the realm"
 mojangStatusTooltipTitle = "Services"
 mojangStatusNETitle = "Non&nbsp;Essential"
-newsButton = "NEWS"
+newsButton = "CHRONICLES"
 launchButton = "PLAY"
 launchButtonPlaceholder = "&#8226; No Server Selected"
 launchDetails = "Please wait.."
@@ -195,10 +197,18 @@ noAccountSelected = "No Account Selected"
 noSelection = "No Server Selected"
 loading = "Loading.."
 
-[js.landing.serverStatus]
-server = "SERVER"
-offline = "OFFLINE"
-players = "PLAYERS"
+[js.landing.reino]
+pruebaTitulo = "Trial of Aldric: {texto}"
+gemaDerrotando = "by defeating {jefe}"
+gemaRecuperado = "Recovered by {quien}"
+gemaPerdido = "Still lost"
+cronicasVacio = "The chronicles are silent for now."
+cronicasSinDatos = "The chronicles can't reach us. We'll try again in a minute."
+haceUnMomento = "just now"
+haceMinutos = "{n} min ago"
+haceHoras = "{n} h ago"
+ayer = "yesterday"
+haceDias = "{n} days ago"
 
 [js.landing.systemScan]
 checking = "Checking system info.."
