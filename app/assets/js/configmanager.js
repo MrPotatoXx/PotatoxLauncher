@@ -100,7 +100,8 @@ const DEFAULT_CONFIG = {
     authenticationDatabase: {},
     modConfigurations: [],
     javaConfig: {},
-    minecraftImportOffered: false
+    minecraftImportOffered: false,
+    ultimaSeleccion: null // { tipo: 'servidor' | 'instancia', id }
 }
 
 let config = null
@@ -281,6 +282,22 @@ exports.setClientToken = function(clientToken){
  * @param {boolean} def Optional. If true, the default value will be returned.
  * @returns {string} The ID of the selected serverpack.
  */
+/**
+ * Lo último que se jugó (servidor o instancia propia), para "Continuar donde quedaste".
+ *
+ * @returns {{tipo: string, id: string} | null}
+ */
+exports.getUltimaSeleccion = function(){
+    return config.ultimaSeleccion ?? null
+}
+
+/**
+ * @param {{tipo: string, id: string} | null} seleccion
+ */
+exports.setUltimaSeleccion = function(seleccion){
+    config.ultimaSeleccion = seleccion
+}
+
 exports.getSelectedServer = function(def = false){
     return !def ? config.selectedServer : DEFAULT_CONFIG.clientToken
 }

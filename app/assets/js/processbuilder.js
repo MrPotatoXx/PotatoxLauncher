@@ -28,7 +28,14 @@ class ProcessBuilder {
         this.commonDir = ConfigManager.getCommonDirectory()
         this.server = distroServer
         this.vanillaManifest = vanillaManifest
-        this.modManifest = modManifest
+        // Sin loader (instancia Vanilla): se lanza con los datos de Minecraft solo.
+        this.usingVanilla = modManifest == null
+        this.modManifest = modManifest ?? {
+            id: vanillaManifest.id,
+            mainClass: vanillaManifest.mainClass,
+            arguments: { jvm: [], game: [] },
+            minecraftArguments: vanillaManifest.minecraftArguments
+        }
         this.authUser = authUser
         this.launcherVersion = launcherVersion
         this.forgeModListFile = path.join(this.gameDir, 'forgeMods.list') // 1.13+
@@ -522,7 +529,10 @@ class ProcessBuilder {
                             val = ConfigManager.getGameHeight()
                             break
                         case 'natives_directory':
-                            val = args[i].replace(argDiscovery, tempNativePath)
+                            // Desde 26.x Mojang usa ${natives_directory}/java, pero los nativos se extraen en la raiz.
+                            val = args[i].startsWith('-Djava.library.path=')
+                                ? '-Djava.library.path=' + tempNativePath
+                                : args[i].replace(argDiscovery, tempNativePath)
                             break
                         case 'launcher_name':
                             val = args[i].replace(argDiscovery, 'Potatox-Launcher')
@@ -675,7 +685,7 @@ class ProcessBuilder {
     classpathArg(mods, tempNativePath){
         let cpArgs = []
 
-        if(!mcVersionAtLeast('1.17', this.server.rawServer.minecraftVersion) || this.usingFabricLoader) {
+        if(!mcVersionAtLeast('1.17', this.server.rawServer.minecraftVersion) || this.usingFabricLoader || this.usingVanilla) {
             // Add the version.jar to the classpath.
             // Must not be added to the classpath for Forge 1.17+.
             const version = this.vanillaManifest.id

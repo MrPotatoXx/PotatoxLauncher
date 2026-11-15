@@ -6,32 +6,10 @@
     <script src="./assets/js/scripts/uibinder.js"></script>
     <link type="text/css" rel="stylesheet" href="./assets/css/launcher.css">
     <link type="text/css" rel="stylesheet" href="./assets/css/reino.css">
-    <style>
-        body {
-            /*background: url('assets/images/backgrounds/<%=bkid%>.jpg') no-repeat center center fixed;*/
-            transition: background-image 1s ease;
-            background-image: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//gA+Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2ODApLCBkZWZhdWx0IHF1YWxpdHkK/9sAQwAIBgYHBgUIBwcHCQkICgwUDQwLCwwZEhMPFB0aHx4dGhwcICQuJyAiLCMcHCg3KSwwMTQ0NB8nOT04MjwuMzQy/9sAQwEJCQkMCwwYDQ0YMiEcITIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy/8AAEQgAPwBwAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A8VooopDCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/9k=');
-            background-size: cover;
-            -webkit-user-select: none;
-        }
-        #main {
-            display: none;
-            height: calc(100% - 22px);
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 100%);
-            width: 100%;
-            position: absolute;
-            z-index: 10;
-        }
-        #main[overlay] {
-            filter: blur(3px) contrast(0.9) brightness(1.0);
-        }
-    </style>
+    <link type="text/css" rel="stylesheet" href="./assets/css/potato.css">
 </head>
 <body bkid="<%=bkid%>">
-    <!-- Capas del ambiente (ambiente.js, reino.js, reino.css). -->
-    <div id="fondoReino"></div>
-    <canvas id="ambienteBrasas"></canvas>
-    <div id="lunaVelo"></div>
+    <!-- Anuncio de la Luna de Sangre (reino.js); solo se ve en la vista de Tierras Malditas. -->
     <div id="lunaAnuncio"><%- lang('app.lunaAnuncio') %></div>
     <%- include('frame') %>
     <div id="main">
@@ -44,11 +22,22 @@
     </div>
     <%- include('overlay') %>
     <div id="loadingContainer">
-        <div id="loadingContent">
-            <div id="loadSpinnerContainer">
-                <img id="loadCenterImage" src="assets/images/LoadingSeal.png">
-                <img id="loadSpinnerImage" class="rotating" src="assets/images/LoadingText.png">
+        <div class="cargaMarca">
+            <svg class="cargaEmblema" viewBox="0 0 400 480" aria-hidden="true">
+                <path d="M205 30 C 290 30 345 95 352 180 C 356 225 368 250 368 300 C 370 400 300 458 205 458 C 105 458 32 405 34 318 C 36 250 52 205 58 170 C 72 85 125 30 205 30 Z" fill="#F3F1E7" stroke="#2C312A" stroke-width="16" stroke-linejoin="round"/>
+                <path d="M30 170 L368 150 L372 182 L34 200 Z" fill="#111" stroke="#111" stroke-width="10" stroke-linejoin="round"/>
+                <path d="M62 180 L192 174 C 190 232 162 262 122 260 C 86 258 66 226 62 180 Z" fill="#111"/>
+                <path d="M210 172 L352 166 C 350 226 318 258 274 256 C 232 254 212 226 210 172 Z" fill="#111"/>
+                <path d="M150 312 C 200 312 245 300 272 280 C 270 316 244 340 214 338 C 190 336 174 326 166 313 Z" fill="#111"/>
+            </svg>
+            <div class="cargaTexto">
+                <span class="cargaNombre"><%- lang('inicio.marcaNombre') %></span>
+                <span class="cargaLauncher"><%- lang('inicio.marcaLauncher') %></span>
             </div>
+        </div>
+        <div class="cargaPie">
+            <img id="loadSpinnerImage" class="cargaMascota rotating" src="assets/images/potato/mascota-cargando.png" alt="">
+            <span class="cargaEstado"><%- lang('inicio.cargandoTexto') %></span>
         </div>
     </div>
     <script src="./assets/js/scripts/ambiente.js"></script>

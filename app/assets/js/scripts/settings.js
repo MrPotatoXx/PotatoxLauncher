@@ -2534,7 +2534,10 @@ async function applySkinChanges(){
 function refreshSkinAvatars(){
     const acc = ConfigManager.getSelectedAccount()
     const bust = Date.now()
-    document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${acc.uuid}/right?v=${bust}')`
+    refrescarAvatarCuenta(bust)
+    if(typeof refrescarPerfil === 'function'){
+        refrescarPerfil(bust)
+    }
     for(const img of document.querySelectorAll(`.settingsAuthAccount[uuid="${acc.uuid}"] .settingsAuthAccountImage`)){
         img.src = `https://mc-heads.net/body/${acc.uuid}/60?v=${bust}`
     }

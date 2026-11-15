@@ -1,9 +1,11 @@
 /**
- * Ambiente de la ventana: brasas y ceniza subiendo muy sutil, parallax del
- * fondo con el mouse y brasas al pasar por los botones con [data-brasas].
+ * Ambiente de la vista de Tierras Malditas: brasas y ceniza subiendo muy sutil,
+ * parallax del arte con el mouse y brasas al pasar por los botones con [data-brasas].
  *
- * Se pausa con document.hidden y respeta prefers-reduced-motion. Con
- * body[luna] (Luna de Sangre, lo pone reino.js) las brasas se vuelven más rojas.
+ * Solo corre con la vista de Tierras Malditas abierta (inicio.js llama a
+ * window.ambienteActivo), se pausa con document.hidden y respeta
+ * prefers-reduced-motion. Con body[luna] (Luna de Sangre, lo pone reino.js)
+ * las brasas se vuelven más rojas.
  */
 (function(){
 
@@ -25,11 +27,13 @@
     let luna = 0 // 0 normal, 1 Luna de Sangre; cambia de a poco
     let ultimo = 0
     let raf = null
+    let activo = false
 
     function redimensionar(){
         const dpr = window.devicePixelRatio || 1
-        ancho = window.innerWidth
-        alto = window.innerHeight
+        const caja = canvas.parentElement.getBoundingClientRect()
+        ancho = Math.max(1, caja.width)
+        alto = Math.max(1, caja.height)
         canvas.width = Math.round(ancho * dpr)
         canvas.height = Math.round(alto * dpr)
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -92,7 +96,8 @@
     }
 
     function iniciar(){
-        if(raf == null && !document.hidden && !reducido){
+        if(raf == null && activo && !document.hidden && !reducido){
+            redimensionar()
             ultimo = performance.now()
             raf = requestAnimationFrame(cuadro)
         }
@@ -112,8 +117,12 @@
 
     window.addEventListener('resize', redimensionar)
     window.addEventListener('mousemove', e => {
-        objetivoX = (0.5 - e.clientX / ancho) * 2 * PARALLAX
-        objetivoY = (0.5 - e.clientY / alto) * 2 * PARALLAX * 0.6
+        if(!activo){
+            return
+        }
+        const caja = canvas.parentElement.getBoundingClientRect()
+        objetivoX = (0.5 - (e.clientX - caja.left) / caja.width) * 2 * PARALLAX
+        objetivoY = (0.5 - (e.clientY - caja.top) / caja.height) * 2 * PARALLAX * 0.6
     })
     document.addEventListener('visibilitychange', () => {
         if(document.hidden){
@@ -122,7 +131,15 @@
             iniciar()
         }
     })
-    iniciar()
+    window.ambienteActivo = function(valor){
+        activo = valor
+        if(activo){
+            iniciar()
+        } else {
+            detener()
+            fondo.style.transform = ''
+        }
+    }
 
     // Unas pocas brasas al pasar el mouse por encima.
     document.querySelectorAll('[data-brasas]').forEach(boton => {
