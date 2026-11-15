@@ -33,7 +33,8 @@ function onDistroLoad(data){
     if(data != null){
         
         // Resolve the selected server if its value has yet to be set.
-        if(ConfigManager.getSelectedServer() == null || data.getServerById(ConfigManager.getSelectedServer()) == null){
+        // Sin servidores (servidor apagado y sin copia guardada) no hay nada que elegir.
+        if((ConfigManager.getSelectedServer() == null || data.getServerById(ConfigManager.getSelectedServer()) == null) && data.getMainServer() != null){
             logger.info('Determining default selected server..')
             ConfigManager.setSelectedServer(data.getMainServer().rawServer.id)
             ConfigManager.save()

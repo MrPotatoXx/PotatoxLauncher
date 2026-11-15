@@ -13,9 +13,8 @@ const ModsJar                     = require('./assets/js/modsjar')
 const fsInicio                    = require('fs-extra')
 const pathInicio                  = require('path')
 const { pathToFileURL }           = require('url')
+const Servidor                    = require('./assets/js/servidor')
 
-const URL_EXTRA     = 'https://mc.potatox.me/launcher/servidores-extra.json'
-const URL_NOTICIAS  = 'https://mc.potatox.me/launcher/noticias.json'
 const IMG           = 'assets/images/potato'
 const loggerInicio  = LoggerUtil.getLogger('Inicio')
 
@@ -188,6 +187,15 @@ function tieneTierras(id){
  */
 const bannersElegidos = {}
 
+/**
+ * background-image del servidor: el banner (desde la caché si ya se bajó) y,
+ * debajo, el arte local por si no carga (sin conexión y sin caché).
+ */
+function fondoServidor(id){
+    const respaldo = tieneTierras(id) ? 'assets/images/backgrounds/0.jpg' : `${IMG}/tarjeta-generica.jpg`
+    return `url('${Servidor.imagen(arteServidor(id))}'), url('${respaldo}')`
+}
+
 function arteServidor(id){
     const extra = extrasServidores[id]
     // Con varios banners, uno al azar que se mantiene toda la sesión.
@@ -214,10 +222,14 @@ function arteServidor(id){
  */
 function estadoServidor(id){
     const extra = extrasServidores[id]?.estado ?? 'abierto'
+    const ping = estadosServidores[id]
+    // mc.potatox.me no respondió: el servidor del admin está apagado o sin conexión.
+    if(Servidor.estado.alcanzable === false && !ping?.online && extra !== 'cerrado'){
+        return { clave: 'sinConexion', texto: tInicio('estado.sinConexion') }
+    }
     if(extra !== 'abierto'){
         return { clave: extra, texto: tInicio('estado.' + extra) }
     }
-    const ping = estadosServidores[id]
     if(ping == null){
         return { clave: 'cargando', texto: tInicio('estado.cargando') }
     }
@@ -333,7 +345,7 @@ function pintarContinuar(){
     if(obj.tipo === 'servidor'){
         const serv = distroInicio.getServerById(obj.id)
         nombre.textContent = serv.rawServer.name
-        arte.style.backgroundImage = `url('${arteServidor(obj.id)}')`
+        arte.style.backgroundImage = fondoServidor(obj.id)
         banner.toggleAttribute('tierras', tieneTierras(obj.id))
         banner.style.setProperty('--acento', extrasServidores[obj.id]?.colorAcento ?? 'transparent')
         chips.append(chipLoader(loaderDeServidor(serv), serv.rawServer.minecraftVersion), chipEstado(obj.id))
@@ -370,7 +382,7 @@ function tarjetaNoticia(n){
     }
     const img = el('img', 'noticiaImagen')
     img.alt = ''
-    img.src = n.imagen || `${IMG}/noticia-default.jpg`
+    img.src = n.imagen ? Servidor.imagen(n.imagen) : `${IMG}/noticia-default.jpg`
     img.onerror = () => {
         img.onerror = null
         img.src = `${IMG}/noticia-default.jpg`
@@ -389,15 +401,11 @@ function tarjetaNoticia(n){
 async function cargarNoticias(){
     const bloque = document.getElementById('bloqueNoticias')
     const lista = document.getElementById('listaNoticias')
-    try {
-        const d = await pedirJson(URL_NOTICIAS)
-        noticiasCache = Array.isArray(d.noticias) ? d.noticias : []
-        lista.replaceChildren(...noticiasCache.slice(0, 6).map(tarjetaNoticia))
-        bloque.style.display = noticiasCache.length > 0 ? '' : 'none'
-    } catch(err) {
-        loggerInicio.warn('No se pudieron cargar las noticias.', err.message)
-        bloque.style.display = 'none'
-    }
+    // Sin servidor se muestran las últimas que se bajaron.
+    const { datos } = await Servidor.leerJson('noticias.json')
+    noticiasCache = Array.isArray(datos?.noticias) ? datos.noticias : []
+    lista.replaceChildren(...noticiasCache.slice(0, 6).map(tarjetaNoticia))
+    bloque.style.display = noticiasCache.length > 0 ? '' : 'none'
     if(seccionActual === 'servidor'){
         pintarPaneles()
     }
@@ -419,10 +427,10 @@ function tarjetaServidor(serv){
         t.setAttribute('ultima', '')
     }
     const arte = el('div', 'tarjetaArte')
-    arte.style.backgroundImage = `url('${arteServidor(id)}')`
+    arte.style.backgroundImage = fondoServidor(id)
     if(serv.rawServer.icon){
         const icono = el('img', 'tarjetaIcono')
-        icono.src = serv.rawServer.icon
+        icono.src = Servidor.imagen(serv.rawServer.icon)
         icono.alt = ''
         icono.onerror = () => icono.remove()
         arte.append(icono)
@@ -442,7 +450,7 @@ function pintarServidores(){
     for(const contenedor of [document.getElementById('inicioServidores'), document.getElementById('listaServidores')]){
         contenedor.replaceChildren()
         if(servidores.length === 0){
-            contenedor.append(vacio(tInicio('sinServidores')))
+            contenedor.append(vacio(tInicio(Servidor.estado.alcanzable === false ? 'sinServidoresConexion' : 'sinServidores')))
         }
         for(const s of servidores){
             contenedor.append(tarjetaServidor(s))
@@ -635,11 +643,14 @@ function pintarVistaServidor(){
     const tierras = tieneTierras(id)
     seccion.toggleAttribute('tierras', tierras)
     seccion.style.setProperty('--acento', extrasServidores[id]?.colorAcento ?? '#6CC04A')
-    document.getElementById('fondoReino').style.backgroundImage = `url('${arteServidor(id)}')`
+    document.getElementById('fondoReino').style.backgroundImage = fondoServidor(id)
     const icono = document.getElementById('servidorIcono')
     icono.hidden = !serv.rawServer.icon
     if(serv.rawServer.icon){
-        icono.src = serv.rawServer.icon
+        icono.onerror = () => {
+            icono.hidden = true
+        }
+        icono.src = Servidor.imagen(serv.rawServer.icon)
     }
     document.getElementById('servidorNombre').textContent = serv.rawServer.name
     document.getElementById('servidorChips').replaceChildren(chipLoader(loaderDeServidor(serv), serv.rawServer.minecraftVersion), chipEstado(id))
@@ -1304,11 +1315,10 @@ ajusteRam.addEventListener('change', () => {
 /* ---------- Arranque ---------- */
 
 async function cargarExtras(){
-    try {
-        const d = await pedirJson(URL_EXTRA)
-        extrasServidores = d?.servidores ?? {}
-    } catch(err) {
-        loggerInicio.warn('No se pudo cargar servidores-extra.json.', err.message)
+    // Sin servidor se usa la última copia buena; sin copia, valores por defecto.
+    const { datos } = await Servidor.leerJson('servidores-extra.json')
+    if(datos?.servidores != null){
+        extrasServidores = datos.servidores
     }
 }
 

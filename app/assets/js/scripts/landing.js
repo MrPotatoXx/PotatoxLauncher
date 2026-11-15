@@ -102,6 +102,10 @@ let alTenerJava = () => dlAsync()
  * Lanza el servidor seleccionado (del distribution.json).
  */
 async function lanzarServidor(){
+    // Con una actualización obligatoria pendiente no se juega.
+    if(document.body.hasAttribute('actualizacionObligatoria')){
+        return
+    }
     loggerLanding.info('Launching game..')
     try {
         idLanzamiento = ConfigManager.getSelectedServer()
@@ -139,6 +143,10 @@ async function lanzarServidor(){
  * @param {string} id El id de la instancia (local-...).
  */
 async function lanzarInstancia(id){
+    // Con una actualización obligatoria pendiente no se juega.
+    if(document.body.hasAttribute('actualizacionObligatoria')){
+        return
+    }
     const inst = Instancias.obtener(id)
     if(inst == null){
         return
@@ -229,6 +237,38 @@ function updateSelectedAccount(authUser){
     refrescarAvatarCuenta()
     if(typeof pintarSaludo === 'function'){
         pintarSaludo()
+    }
+    // La distribution depende de la cuenta (el admin recibe los servidores de prueba).
+    const uuid = authUser?.uuid ?? null
+    if(uuid !== uuidDistribution){
+        const antes = uuidDistribution
+        uuidDistribution = uuid
+        if(antes !== undefined){
+            refrescarDistroPorCuenta()
+        }
+    }
+}
+
+// undefined hasta la primera cuenta: la carga inicial ya va con la cuenta activa.
+let uuidDistribution
+
+/**
+ * Vuelve a pedir la distribution con la cuenta nueva. Si el servidor elegido ya
+ * no está en la lista (por ejemplo, uno de prueba), se elige el principal.
+ */
+async function refrescarDistroPorCuenta(){
+    try {
+        const data = await DistroAPI.refreshDistributionOrFallback()
+        if(data == null){
+            return
+        }
+        if(data.getServerById(ConfigManager.getSelectedServer()) == null && data.getMainServer() != null){
+            ConfigManager.setSelectedServer(data.getMainServer().rawServer.id)
+            ConfigManager.save()
+        }
+        onDistroRefresh(data)
+    } catch(err) {
+        loggerLanding.warn('No se pudo refrescar la distribution tras cambiar de cuenta.', err)
     }
 }
 

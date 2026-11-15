@@ -39,6 +39,10 @@ webFrame.setVisualZoomLevelLimits(1, 1)
 let updateCheckListener
 if(!isDev){
     ipcRenderer.on('autoUpdateNotification', (event, arg, info) => {
+        // Obligatorias y opcionales (actualizacion.js).
+        if(typeof alEventoActualizacion === 'function'){
+            alEventoActualizacion(arg, info)
+        }
         switch(arg){
             case 'checking-for-update':
                 loggerAutoUpdater.info('Checking for update..')
@@ -72,6 +76,8 @@ if(!isDev){
                     ipcRenderer.send('autoUpdateAction', 'checkForUpdate')
                 }, 1800000)
                 ipcRenderer.send('autoUpdateAction', 'checkForUpdate')
+                break
+            case 'download-progress':
                 break
             case 'realerror':
                 if(info != null && info.code != null){

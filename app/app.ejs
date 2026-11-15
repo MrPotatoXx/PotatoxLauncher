@@ -40,6 +40,31 @@
             <span class="cargaEstado"><%- lang('inicio.cargandoTexto') %></span>
         </div>
     </div>
+    <!-- Actualización obligatoria (actualizacion.js): tapa todo menos la barra de la ventana. -->
+    <div id="bloqueoActualizacion" hidden>
+        <div class="bloqueoCaja" role="alertdialog" aria-labelledby="bloqueoTitulo">
+            <img class="bloqueoMascota" src="assets/images/potato/mascota-cargando.png" alt="">
+            <h2 id="bloqueoTitulo" class="tituloPixel"><%- lang('inicio.actObligatoriaTitulo') %></h2>
+            <p id="bloqueoVersion" class="textoSuave"></p>
+            <div id="bloqueoNotas" class="bloqueoNotas" hidden></div>
+            <div id="bloqueoBarra" class="lanzamientoBarra">
+                <progress id="bloqueoProgreso" value="0" max="100"></progress>
+                <span id="bloqueoPorcentaje">0%</span>
+            </div>
+            <p id="bloqueoEstado" class="textoSuave"></p>
+            <div id="bloqueoError" class="filaBotones" hidden>
+                <button id="bloqueoReintentar" class="botonPrincipal"><%- lang('inicio.actReintentar') %></button>
+                <a id="bloqueoDescargar" class="botonSecundario" href="https://mc.potatox.me/descargar"><%- lang('inicio.actDescargarMano') %></a>
+            </div>
+        </div>
+    </div>
+    <!-- Actualización opcional lista (una vez por versión). -->
+    <div id="toastActualizacion" role="status" hidden>
+        <span id="toastActualizacionTexto"></span>
+        <button class="botonPrincipal" data-accion="reiniciar"><%- lang('inicio.actReiniciar') %></button>
+        <button class="botonIcono cerrarToast" data-accion="cerrar" aria-label="<%- lang('inicio.actCerrar') %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
     <script src="./assets/js/scripts/ambiente.js"></script>
+    <script src="./assets/js/scripts/actualizacion.js"></script>
 </body>
 </html>

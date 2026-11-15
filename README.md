@@ -82,6 +82,41 @@ Los servidores, las noticias y la presentación de cada servidor no están dentr
 | `noticias.json` | `{ "version": 1, "noticias": [ { "id", "fecha", "titulo", "resumen", "etiqueta", "imagen", "link", "servidor"? } ] }`. Con `servidor` (el id), la noticia sale también en la vista de ese servidor. |
 | `servidores-extra.json` | `{ "version": 1, "servidores": { "<id>": { … } } }` con los datos de presentación de cada servidor (abajo). Un servidor que no aparece usa valores por defecto. |
 
+El launcher pide `distribution.json` con la cabecera `X-Potatox-Cuenta` (el UUID de la cuenta activa, con guiones), para que el servidor pueda entregarle al admin también los servidores de prueba. Sin cuenta no se manda nada, y al cambiar de cuenta se vuelve a pedir.
+
+#### Sin conexión con el servidor
+
+El launcher no depende de que `mc.potatox.me` esté prendido:
+
+* Cada pedido espera como mucho 5 segundos; si no hay respuesta, sigue.
+* Guarda en la carpeta de datos del launcher (`cache-servidor/`) la última copia buena de `servidores-extra.json` y `noticias.json`, y en caché los banners, íconos e imágenes de noticias; `distribution.json` queda guardado al lado, como siempre en Helios. Sin respuesta usa esas copias; sin copias, el arte que viene en el launcher (`tarjeta-generica` y el fondo de Tierras Malditas).
+* Los servidores que no responden se muestran como **Apagado · sin conexión**. Inicio, Ajustes, Perfil y las instancias propias funcionan igual (Vanilla y Fabric se bajan de Mojang y de Fabric, no del servidor).
+* Si nunca se bajó la lista de servidores y el servidor está apagado, se entra igual sin servidores; Ajustes oculta las pestañas Mods y Java del servidor.
+
+Para probarlo en desarrollo: `POTATOX_SERVIDOR=http://10.255.255.1/launcher/ npm start` (una dirección que no responde).
+
+### Actualizaciones del launcher
+
+Se controlan desde este repo, no desde el servidor. Cada release lleva en `docs/release-notes.md` (el workflow lo copia al release de GitHub) una línea que dice si es obligatoria:
+
+```markdown
+<!-- obligatoria: sí -->
+### Lo nuevo
+- ...
+```
+
+Puede ir como comentario HTML (así no se ve en el release ni en el launcher) o como línea normal `obligatoria: sí` / `obligatoria: no`. Un release sin la línea cuenta como **no**.
+
+Durante la pantalla de carga el launcher consulta los releases de GitHub más nuevos que la versión instalada (5 segundos como máximo):
+
+| Caso | Qué pasa |
+| ---- | -------- |
+| Alguno es `obligatoria: sí` | En la misma pantalla de carga: **Actualización obligatoria** con las notas, descarga con barra de progreso, instalación y reinicio. No se entra sin actualizar. Si falla: **Reintentar** o bajar el instalador desde GitHub. |
+| Todos son `obligatoria: no` | Se entra normal. Aviso discreto en la barra lateral y un toast una sola vez; se descarga en segundo plano y se instala al cerrar el launcher o al apretar **Reiniciar y actualizar**. |
+| Sin internet o GitHub no responde | Se entra normal. |
+
+Las versiones se comparan con semver.
+
 Campos de cada servidor en `servidores-extra.json`:
 
 | Campo | Qué hace |
@@ -109,10 +144,11 @@ Un tipo que el launcher no conoce se ignora, así se pueden agregar tipos nuevos
 
 | Qué | Dónde |
 | --- | ----- |
-| URLs del servidor | `distromanager.js` (`REMOTE_DISTRO_URL`) y `scripts/inicio.js` (`URL_NOTICIAS`, `URL_EXTRA`) en `app/assets/js/` |
+| URL del servidor, timeouts y caché sin conexión | `app/assets/js/servidor.js` (la distribution en `distromanager.js`) |
 | Vista principal, paneles y edición de instancias | `app/landing.ejs`, `app/assets/js/scripts/inicio.js` |
 | Instancias propias y loaders | `app/assets/js/instancias.js` (descargas en `instanciasworker.js`, mods en `modsjar.js`) |
 | Bloque de Tierras Malditas | `app/assets/js/scripts/reino.js`, `ambiente.js` y `app/assets/css/reino.css` |
+| Actualizaciones obligatorias y opcionales | `app/assets/js/scripts/actualizacion.js` (eventos de electron-updater en `index.js` y `uicore.js`) |
 | ID de la app de Microsoft | `app/assets/js/ipcconstants.js` → `AZURE_CLIENT_ID` |
 | Textos | `app/assets/lang/es_ES.toml` y `en_US.toml`; título y bienvenida en `_custom.toml` |
 | Estilos | `app/assets/css/potato.css` (sobre `launcher.css` de Helios) |

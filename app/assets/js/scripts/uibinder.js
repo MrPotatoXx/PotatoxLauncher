@@ -64,6 +64,11 @@ async function showMainUI(data){
         ipcRenderer.send('autoUpdateAction', 'initAutoUpdater', ConfigManager.getAllowPrerelease())
     }
 
+    // Con una actualización obligatoria se queda en la pantalla de carga (actualizacion.js).
+    if(await actualizacionObligatoriaPendiente()){
+        return
+    }
+
     await prepareSettings(true)
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
     refreshServerStatus()

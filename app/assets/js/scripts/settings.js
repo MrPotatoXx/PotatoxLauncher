@@ -128,6 +128,9 @@ async function initSettingsValues(){
     for(const v of sEls) {
         const cVal = v.getAttribute('cValue')
         const serverDependent = v.hasAttribute('serverDependent') // Means the first argument is the server id.
+        if(serverDependent && !haySeleccionServidor()) {
+            continue
+        }
         const gFn = ConfigManager['get' + cVal]
         const gFnOpts = []
         if(serverDependent) {
@@ -180,6 +183,9 @@ function saveSettingsValues(){
     Array.from(sEls).map((v, index, arr) => {
         const cVal = v.getAttribute('cValue')
         const serverDependent = v.hasAttribute('serverDependent') // Means the first argument is the server id.
+        if(serverDependent && !haySeleccionServidor()) {
+            return
+        }
         const sFn = ConfigManager['set' + cVal]
         const sFnOpts = []
         if(serverDependent) {
@@ -328,10 +334,23 @@ function settingsSaveDisabled(v){
 
 function fullSettingsSave() {
     saveSettingsValues()
-    saveModConfiguration()
+    if(haySeleccionServidor()){
+        saveModConfiguration()
+    }
     ConfigManager.save()
-    saveDropinModConfiguration()
-    saveShaderpackSettings()
+    if(haySeleccionServidor() && CACHE_SETTINGS_MODS_DIR != null){
+        saveDropinModConfiguration()
+        saveShaderpackSettings()
+    }
+}
+
+/**
+ * Si hay un servidor elegido. Puede no haber cuando el servidor está apagado y
+ * nunca se bajó la lista: ahí las pestañas Mods y Java del servidor se ocultan.
+ */
+function haySeleccionServidor() {
+    const sel = ConfigManager.getSelectedServer()
+    return sel != null && DistroAPI.distribution?.getServerById(sel) != null
 }
 
 /* Closes the settings view and saves all data. */
@@ -2711,14 +2730,20 @@ async function prepareSettings(first = false) {
         setupSettingsTabs()
         initSettingsValidators()
         prepareUpdateTab()
-    } else {
+    } else if(haySeleccionServidor()) {
         await prepareModsTab()
     }
+    const conServidor = haySeleccionServidor()
+    document.getElementById('settingsContainer').toggleAttribute('sinServidor', !conServidor)
     await initSettingsValues()
     prepareAccountsTab()
-    await prepareJavaTab()
+    if(conServidor){
+        await prepareJavaTab()
+    }
     prepareAboutTab()
-    await prepareMinecraftImport()
+    if(conServidor){
+        await prepareMinecraftImport()
+    }
     if(selectedSettingsTab === 'settingsTabSkin'){
         prepareSkinTab()
     }
