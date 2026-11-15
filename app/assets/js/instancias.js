@@ -227,7 +227,49 @@ exports.crear = function(d){
     fs.ensureDirSync(exports.carpeta(id))
     cargar().instancias.push(inst)
     guardar()
+    // Arranca con la RAM por defecto de Ajustes; después se cambia en la instancia.
+    ConfigManager.ensureJavaConfig(id, { suggestedMajor: 17 }, ConfigManager.getRamPorDefecto() != null ? { recommended: ConfigManager.getRamPorDefecto() } : null)
+    ConfigManager.save()
     return inst
+}
+
+/**
+ * Copia una instancia (carpeta completa y ajustes de Java) con otro nombre.
+ *
+ * @returns {Promise<Object>} La instancia nueva.
+ */
+exports.duplicar = async function(id, nombre){
+    const orig = exports.obtener(id)
+    const copia = exports.crear({ nombre, mc: orig.mc, loader: orig.loader, loaderVersion: orig.loaderVersion })
+    await fs.copy(exports.carpeta(id), exports.carpeta(copia.id), { overwrite: false })
+    exports.actualizar(copia.id, { icono: orig.icono ?? null })
+    ConfigManager.setMaxRAM(copia.id, ConfigManager.getMaxRAM(id))
+    ConfigManager.setMinRAM(copia.id, ConfigManager.getMinRAM(id))
+    ConfigManager.setJavaExecutable(copia.id, ConfigManager.getJavaExecutable(id))
+    ConfigManager.setJVMOptions(copia.id, [...ConfigManager.getJVMOptions(id)])
+    ConfigManager.save()
+    return exports.obtener(copia.id)
+}
+
+const ARCHIVO_ICONO = 'icono-instancia.png'
+
+/**
+ * Ruta del ícono propio de la instancia, o null si usa el del loader.
+ */
+exports.rutaIcono = function(inst){
+    return inst?.icono ? path.join(exports.carpeta(inst.id), inst.icono) : null
+}
+
+/**
+ * Copia una imagen como ícono de la instancia (null para volver al del loader).
+ */
+exports.ponerIcono = async function(id, origen){
+    if(origen == null){
+        await fs.remove(path.join(exports.carpeta(id), ARCHIVO_ICONO))
+        return exports.actualizar(id, { icono: null })
+    }
+    await fs.copy(origen, path.join(exports.carpeta(id), ARCHIVO_ICONO))
+    return exports.actualizar(id, { icono: ARCHIVO_ICONO })
 }
 
 exports.actualizar = function(id, cambios){

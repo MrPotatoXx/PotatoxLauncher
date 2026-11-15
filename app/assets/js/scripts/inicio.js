@@ -3,12 +3,16 @@
  * la vista de cada servidor e instancia, el perfil y el diálogo para crear instancias.
  *
  * Los servidores llegan del distribution.json (el servidor decide cuáles ve cada uno).
- * Los datos de presentación (loader, banner, color, estado) vienen aparte en
- * servidores-extra.json y las noticias en noticias.json. Si algo falla se muestran
+ * Los datos de presentación (loader, banner, color, estado y paneles) vienen aparte
+ * en servidores-extra.json y las noticias en noticias.json. Si algo falla se muestran
  * valores por defecto y el launcher sigue andando.
  */
-const { getStatus: pingServidor } = require('./assets/js/serverstatus')
+const { getStatus: pingLegacy, getStatusModerno } = require('./assets/js/serverstatus')
 const { SHELL_OPCODE }            = require('./assets/js/ipcconstants')
+const ModsJar                     = require('./assets/js/modsjar')
+const fsInicio                    = require('fs-extra')
+const pathInicio                  = require('path')
+const { pathToFileURL }           = require('url')
 
 const URL_EXTRA     = 'https://mc.potatox.me/launcher/servidores-extra.json'
 const URL_NOTICIAS  = 'https://mc.potatox.me/launcher/noticias.json'
@@ -18,6 +22,7 @@ const loggerInicio  = LoggerUtil.getLogger('Inicio')
 let distroInicio = null
 let extrasServidores = {}
 let estadosServidores = {}
+let noticiasCache = []
 let seccionActual = 'inicio'
 let seccionAnterior = 'inicio'
 let instanciaAbierta = null
@@ -32,6 +37,8 @@ const ICONOS_LOADER = {
     forge: '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><rect y="2" width="8" height="1" fill="#7d848c"/><rect x="1" y="3" width="6" height="1" fill="#5b6168"/><rect x="3" y="4" width="2" height="1" fill="#5b6168"/><rect x="2" y="5" width="4" height="1" fill="#5b6168"/><rect x="1" y="6" width="6" height="1" fill="#454a50"/><rect y="2" width="2" height="1" fill="#9aa1a8"/></svg>',
     neoforge: '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><rect y="2" width="8" height="1" fill="#e2a15a"/><rect x="1" y="3" width="6" height="1" fill="#c47a35"/><rect x="3" y="4" width="2" height="1" fill="#c47a35"/><rect x="2" y="5" width="4" height="1" fill="#c47a35"/><rect x="1" y="6" width="6" height="1" fill="#9a5a24"/><rect y="2" width="2" height="1" fill="#f2c48a"/></svg>'
 }
+
+const ICONO_PAPELERA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'
 
 /* ---------- Utilidades ---------- */
 
@@ -54,9 +61,91 @@ async function pedirJson(url){
     return res.json()
 }
 
-function esTierras(id){
-    return typeof id === 'string' && id.startsWith('TierrasMalditas')
+async function abrirCarpeta(carpeta){
+    await fsInicio.ensureDir(carpeta)
+    shell.openPath(carpeta)
 }
+
+async function aLaPapelera(ruta){
+    const res = await ipcRenderer.invoke(SHELL_OPCODE.TRASH_ITEM, ruta)
+    if(!res.result){
+        loggerInicio.error('No se pudo mandar a la papelera.', ruta, res.error)
+    }
+    return res.result
+}
+
+function confirmar(titulo, texto, si, alAceptar){
+    setOverlayContent(titulo, texto, si, tInicio('cancelar'))
+    setOverlayHandler(() => {
+        toggleOverlay(false)
+        alAceptar()
+    })
+    setDismissHandler(() => toggleOverlay(false))
+    toggleOverlay(true, true)
+}
+
+function mostrarError(titulo, texto){
+    setOverlayContent(titulo, `<img class="overlayMascota" src="${IMG}/mascota-error.png" alt="">${texto}`, tInicio('entendido'))
+    setOverlayHandler(null)
+    toggleOverlay(true)
+}
+
+function nombreLoader(id){
+    return Instancias.LOADERS[id]?.nombre ?? id
+}
+
+function chipLoader(loader, version){
+    const c = el('span', 'chip chipLoader', `${nombreLoader(loader)} ${version}`)
+    c.setAttribute('loader', loader)
+    return c
+}
+
+function vacio(texto){
+    const v = el('div', 'listaVacia')
+    const img = el('img')
+    img.src = `${IMG}/mascota-vacio.png`
+    img.alt = ''
+    v.append(img, el('p', null, texto))
+    return v
+}
+
+/**
+ * Pestañas: los botones [role=tab] y los .pestana de un mismo data-grupo.
+ */
+function elegirPestana(grupo, pestana){
+    for(const b of document.querySelectorAll(`.pestanas[data-grupo="${grupo}"] [role="tab"]`)){
+        b.setAttribute('aria-selected', b.dataset.pestana === pestana ? 'true' : 'false')
+    }
+    for(const p of document.querySelectorAll(`.pestana[data-grupo="${grupo}"]`)){
+        p.hidden = p.dataset.pestana !== pestana
+    }
+}
+for(const barra of document.querySelectorAll('.pestanas')){
+    for(const b of barra.querySelectorAll('[role="tab"]')){
+        b.addEventListener('click', () => {
+            elegirPestana(barra.dataset.grupo, b.dataset.pestana)
+            if(barra.dataset.grupo === 'instancia' && b.dataset.pestana === 'mods'){
+                cargarModsInstancia()
+            }
+        })
+    }
+}
+
+/**
+ * Botones para abrir las subcarpetas de una instancia o servidor.
+ */
+function pintarCarpetas(contenedor, base, nombres){
+    contenedor.replaceChildren()
+    for(const n of nombres){
+        const b = el('button', 'botonCarpeta')
+        b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
+        b.append(el('span', 'carpetaNombre', tInicio('carpeta.' + n)), el('span', 'carpetaRuta', n))
+        b.addEventListener('click', () => abrirCarpeta(pathInicio.join(base, n)))
+        contenedor.append(b)
+    }
+}
+
+/* ---------- Servidores: datos ---------- */
 
 function loaderDeServidor(serv){
     const extra = extrasServidores[serv.rawServer.id]
@@ -73,14 +162,39 @@ function loaderDeServidor(serv){
     return 'vanilla'
 }
 
-function nombreLoader(id){
-    return Instancias.LOADERS[id]?.nombre ?? id
+/**
+ * Paneles de la vista del servidor (servidores-extra.json → paneles).
+ * Mientras servidores-extra.json no traiga paneles para Tierras Malditas, se
+ * usa su bloque de siempre para que no se pierda.
+ */
+function panelesDe(id){
+    const paneles = extrasServidores[id]?.paneles
+    if(Array.isArray(paneles)){
+        return paneles.filter(p => p && typeof p.tipo === 'string')
+    }
+    if(typeof id === 'string' && id.startsWith('TierrasMalditas')){
+        return [{ tipo: 'estado' }, { tipo: 'tierras' }]
+    }
+    return [{ tipo: 'estado' }, { tipo: 'jugadores' }, { tipo: 'noticias' }]
 }
 
-function chipLoader(loader, version){
-    const c = el('span', 'chip chipLoader', `${nombreLoader(loader)} ${version}`)
-    c.setAttribute('loader', loader)
-    return c
+function tieneTierras(id){
+    return panelesDe(id).some(p => p.tipo === 'tierras')
+}
+
+/**
+ * El banner sale de servidores-extra.json; sin banner, la tarjeta genérica.
+ * (Un servidor con el panel "tierras" y sin banner usa el arte oscuro local.)
+ */
+function arteServidor(id){
+    const extra = extrasServidores[id]
+    if(extra?.banner){
+        return extra.banner
+    }
+    if(tieneTierras(id)){
+        return `assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg`
+    }
+    return `${IMG}/tarjeta-generica.jpg`
 }
 
 /**
@@ -110,24 +224,16 @@ function chipEstado(id){
     return c
 }
 
-function arteServidor(id){
-    const extra = extrasServidores[id]
-    if(extra?.banner){
-        return extra.banner
+async function pingServidor(s){
+    try {
+        return await getStatusModerno(s.hostname, s.port)
+    } catch(_err) {
+        try {
+            return { ...await pingLegacy(s.hostname, s.port), jugadores: [] }
+        } catch(_err2) {
+            return { online: false, jugadores: [] }
+        }
     }
-    if(esTierras(id)){
-        return `assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg`
-    }
-    return `${IMG}/tarjeta-generica.jpg`
-}
-
-function vacio(texto){
-    const v = el('div', 'listaVacia')
-    const img = el('img')
-    img.src = `${IMG}/mascota-vacio.png`
-    img.alt = ''
-    v.append(img, el('p', null, texto))
-    return v
 }
 
 /* ---------- Navegación ---------- */
@@ -151,9 +257,10 @@ function irA(seccion){
         }
     }
     document.getElementById('contenido').scrollTop = 0
-    document.body.toggleAttribute('vistaTierras', seccion === 'servidor' && esTierras(ConfigManager.getSelectedServer()))
+    const tierras = seccion === 'servidor' && tieneTierras(ConfigManager.getSelectedServer())
+    document.body.toggleAttribute('vistaTierras', tierras)
     if(typeof window.ambienteActivo === 'function'){
-        window.ambienteActivo(document.body.hasAttribute('vistaTierras'))
+        window.ambienteActivo(tierras)
     }
     if(seccion === 'perfil'){
         refrescarPerfil()
@@ -171,6 +278,10 @@ for(const b of document.querySelectorAll('[data-volver]')){
 for(const b of document.querySelectorAll('[data-accion="crear"]')){
     b.addEventListener('click', () => abrirCrear())
 }
+
+// Soltar un archivo fuera de la zona de mods no debe navegar a él.
+document.addEventListener('dragover', e => e.preventDefault())
+document.addEventListener('drop', e => e.preventDefault())
 
 /* ---------- Saludo y continuar ---------- */
 
@@ -207,13 +318,12 @@ function pintarContinuar(){
     const nombre = banner.querySelector('.bannerNombre')
     const ver = banner.querySelector('[data-accion="ver"]')
     chips.replaceChildren()
-    banner.removeAttribute('tierras')
 
     if(obj.tipo === 'servidor'){
         const serv = distroInicio.getServerById(obj.id)
         nombre.textContent = serv.rawServer.name
         arte.style.backgroundImage = `url('${arteServidor(obj.id)}')`
-        banner.toggleAttribute('tierras', esTierras(obj.id))
+        banner.toggleAttribute('tierras', tieneTierras(obj.id))
         banner.style.setProperty('--acento', extrasServidores[obj.id]?.colorAcento ?? 'transparent')
         chips.append(chipLoader(loaderDeServidor(serv), serv.rawServer.minecraftVersion), chipEstado(obj.id))
         ver.textContent = tInicio('verServidor')
@@ -226,6 +336,7 @@ function pintarContinuar(){
         const inst = Instancias.obtener(obj.id)
         nombre.textContent = inst.nombre
         arte.style.backgroundImage = `url('${IMG}/fondo-carga.jpg')`
+        banner.removeAttribute('tierras')
         banner.style.setProperty('--acento', 'transparent')
         chips.append(chipLoader(inst.loader, inst.mc))
         ver.textContent = tInicio('verInstancia')
@@ -238,7 +349,30 @@ function pintarContinuar(){
 
 function fechaCorta(iso){
     const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''))
-    return isNaN(d) ? iso : d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+    return isNaN(d) ? iso : d.toLocaleDateString(Lang.idiomaElegido() === 'en_US' ? 'en' : 'es', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function tarjetaNoticia(n){
+    const tarjeta = el(n.link ? 'a' : 'article', 'tarjetaNoticia')
+    if(n.link){
+        tarjeta.href = n.link
+    }
+    const img = el('img', 'noticiaImagen')
+    img.alt = ''
+    img.src = n.imagen || `${IMG}/noticia-default.jpg`
+    img.onerror = () => {
+        img.onerror = null
+        img.src = `${IMG}/noticia-default.jpg`
+    }
+    const textos = el('div', 'noticiaTextos')
+    if(n.etiqueta){
+        textos.append(el('span', 'noticiaEtiqueta', n.etiqueta))
+    }
+    textos.append(el('span', 'noticiaTitulo', n.titulo ?? ''))
+    const meta = [n.fecha ? fechaCorta(n.fecha) : null, n.resumen].filter(Boolean).join(' · ')
+    textos.append(el('span', 'noticiaResumen', meta))
+    tarjeta.append(img, textos)
+    return tarjeta
 }
 
 async function cargarNoticias(){
@@ -246,38 +380,19 @@ async function cargarNoticias(){
     const lista = document.getElementById('listaNoticias')
     try {
         const d = await pedirJson(URL_NOTICIAS)
-        const noticias = Array.isArray(d.noticias) ? d.noticias : []
-        lista.replaceChildren()
-        for(const n of noticias.slice(0, 6)){
-            const tarjeta = el(n.link ? 'a' : 'article', 'tarjetaNoticia')
-            if(n.link){
-                tarjeta.href = n.link
-            }
-            const img = el('img', 'noticiaImagen')
-            img.alt = ''
-            img.src = n.imagen || `${IMG}/noticia-default.jpg`
-            img.onerror = () => {
-                img.onerror = null
-                img.src = `${IMG}/noticia-default.jpg`
-            }
-            const textos = el('div', 'noticiaTextos')
-            if(n.etiqueta){
-                textos.append(el('span', 'noticiaEtiqueta', n.etiqueta))
-            }
-            textos.append(el('span', 'noticiaTitulo', n.titulo ?? ''))
-            const meta = [n.fecha ? fechaCorta(n.fecha) : null, n.resumen].filter(Boolean).join(' · ')
-            textos.append(el('span', 'noticiaResumen', meta))
-            tarjeta.append(img, textos)
-            lista.append(tarjeta)
-        }
-        bloque.style.display = noticias.length > 0 ? '' : 'none'
+        noticiasCache = Array.isArray(d.noticias) ? d.noticias : []
+        lista.replaceChildren(...noticiasCache.slice(0, 6).map(tarjetaNoticia))
+        bloque.style.display = noticiasCache.length > 0 ? '' : 'none'
     } catch(err) {
         loggerInicio.warn('No se pudieron cargar las noticias.', err.message)
         bloque.style.display = 'none'
     }
+    if(seccionActual === 'servidor'){
+        pintarPaneles()
+    }
 }
 
-/* ---------- Servidores ---------- */
+/* ---------- Servidores: tarjetas ---------- */
 
 function seleccionarServidor(id){
     if(ConfigManager.getSelectedServer() !== id){
@@ -327,11 +442,7 @@ function pintarServidores(){
 async function pingTodos(){
     const servidores = distroInicio?.servers ?? []
     await Promise.all(servidores.map(async s => {
-        try {
-            estadosServidores[s.rawServer.id] = await pingServidor(s.hostname, s.port)
-        } catch(_err) {
-            estadosServidores[s.rawServer.id] = { online: false }
-        }
+        estadosServidores[s.rawServer.id] = await pingServidor(s)
     }))
     pintarServidores()
     pintarContinuar()
@@ -340,10 +451,167 @@ async function pingTodos(){
     }
 }
 
+/* ---------- Vista de servidor y sus paneles ---------- */
+
 function abrirServidor(id){
     seleccionarServidor(id)
+    elegirPestana('servidor', 'resumen')
     pintarVistaServidor()
     irA('servidor')
+}
+
+function panelBase(titulo, clase){
+    const p = el('section', 'panelServidor' + (clase ? ' ' + clase : ''))
+    if(titulo){
+        p.append(el('h3', null, titulo))
+    }
+    return p
+}
+
+function filaDato(etiqueta, valor){
+    const f = el('div', 'filaDato')
+    f.append(el('span', 'datoEtiqueta', etiqueta), el('span', 'datoValor', valor))
+    return f
+}
+
+/**
+ * Tipos de panel que entiende el launcher. Un tipo desconocido se ignora,
+ * así el servidor puede agregar tipos nuevos sin romper launchers viejos.
+ */
+const PANELES = {
+    estado(p, serv){
+        const id = serv.rawServer.id
+        const ping = estadosServidores[id]
+        const panel = panelBase(p.titulo ?? tInicio('panel.estado'))
+        panel.append(chipEstado(id))
+        if(ping?.online){
+            panel.append(filaDato(tInicio('panel.jugadores'), `${ping.onlinePlayers}/${ping.maxPlayers}`))
+            if(ping.version){
+                panel.append(filaDato(tInicio('panel.version'), ping.version))
+            }
+        }
+        panel.append(filaDato(tInicio('panel.direccion'), serv.rawServer.address))
+        if(ping?.motd){
+            panel.append(el('p', 'panelMotd', ping.motd))
+        }
+        return panel
+    },
+    jugadores(p, serv){
+        const ping = estadosServidores[serv.rawServer.id]
+        const panel = panelBase(p.titulo ?? tInicio('panel.conectados'))
+        const lista = ping?.jugadores ?? []
+        if(lista.length > 0){
+            const caras = el('div', 'listaCaras')
+            for(const j of lista){
+                const c = el('span', 'cara')
+                const img = el('img')
+                img.src = `https://mc-heads.net/avatar/${encodeURIComponent(j.id || j.name)}/32`
+                img.alt = ''
+                c.append(img, el('span', null, j.name))
+                caras.append(c)
+            }
+            panel.append(caras)
+        } else {
+            panel.append(el('p', 'textoSuave', ping?.online && ping.onlinePlayers > 0 ? tInicio('panel.listaOculta') : tInicio('panel.nadie')))
+        }
+        return panel
+    },
+    noticias(p, serv){
+        const panel = panelBase(p.titulo ?? tInicio('noticias'), 'anchoCompleto')
+        const lista = el('div', 'grillaNoticias')
+        panel.append(lista)
+        const pintar = noticias => {
+            const max = Number.isInteger(p.max) ? p.max : 4
+            lista.replaceChildren(...noticias.slice(0, max).map(tarjetaNoticia))
+            panel.hidden = noticias.length === 0
+        }
+        if(p.url){
+            panel.hidden = true
+            pedirJson(p.url)
+                .then(d => pintar(Array.isArray(d.noticias) ? d.noticias : []))
+                .catch(err => loggerInicio.warn('Panel de noticias:', err.message))
+        } else {
+            pintar(noticiasCache.filter(n => n.servidor === serv.rawServer.id))
+        }
+        return panel
+    },
+    link(p){
+        if(!p.url){
+            return null
+        }
+        const panel = panelBase(p.titulo ?? '')
+        if(p.texto){
+            panel.append(el('p', 'textoSuave', p.texto))
+        }
+        const a = el('a', 'botonSecundario', p.boton ?? tInicio('panel.abrir'))
+        a.href = p.url
+        panel.append(a)
+        return panel
+    },
+    texto(p){
+        if(!p.texto){
+            return null
+        }
+        const panel = panelBase(p.titulo ?? '', p.ancho === 'completo' ? 'anchoCompleto' : '')
+        panel.append(el('p', 'panelTexto', p.texto))
+        return panel
+    },
+    tierras(p){
+        // El reino vivo: Prueba, Aldric, gemas, Luna de Sangre y cabezas van en el
+        // héroe (reino.js); acá quedan las Crónicas.
+        window.urlReino = p.url || null
+        const panel = panelBase(null, 'anchoCompleto panelTierras')
+        panel.append(document.getElementById('cronicasPanel'))
+        return panel
+    }
+}
+
+function pintarPaneles(){
+    const id = ConfigManager.getSelectedServer()
+    const serv = distroInicio?.getServerById(id)
+    if(serv == null){
+        return
+    }
+    const cont = document.getElementById('panelesServidor')
+    // Las Crónicas vuelven a su lugar antes de rehacer los paneles.
+    cont.after(document.getElementById('cronicasPanel'))
+    cont.replaceChildren()
+    for(const p of panelesDe(id)){
+        const fn = PANELES[p.tipo]
+        if(fn == null){
+            loggerInicio.debug('Tipo de panel desconocido:', p.tipo)
+            continue
+        }
+        try {
+            const panel = fn(p, serv)
+            if(panel != null){
+                cont.append(panel)
+            }
+        } catch(err) {
+            loggerInicio.warn('No se pudo armar el panel', p.tipo, err)
+        }
+    }
+}
+
+function pintarModsServidor(serv){
+    const cont = document.getElementById('servidorMods')
+    cont.replaceChildren()
+    const tipos = ['ForgeMod', 'FabricMod', 'LiteMod']
+    const mods = serv.modules.filter(m => tipos.includes(m.rawModule.type))
+    if(mods.length === 0){
+        cont.append(vacio(tInicio('modsServidorVacio')))
+        return
+    }
+    mods.sort((a, b) => (a.rawModule.name ?? '').localeCompare(b.rawModule.name ?? '', 'es', { sensitivity: 'base' }))
+    for(const m of mods){
+        const fila = el('div', 'filaMod')
+        const textos = el('div', 'modTextos')
+        textos.append(el('span', 'modNombre', m.rawModule.name ?? m.rawModule.id))
+        const version = m.hasMavenComponents() ? m.getMavenComponents().version : ''
+        textos.append(el('span', 'modVersion', [version, m.getRequired().value ? null : tInicio('modOpcional')].filter(Boolean).join(' · ')))
+        fila.append(textos)
+        cont.append(fila)
+    }
 }
 
 function pintarVistaServidor(){
@@ -353,11 +621,10 @@ function pintarVistaServidor(){
         return
     }
     const seccion = document.getElementById('seccionServidor')
-    const tierras = esTierras(id)
+    const tierras = tieneTierras(id)
     seccion.toggleAttribute('tierras', tierras)
     seccion.style.setProperty('--acento', extrasServidores[id]?.colorAcento ?? '#6CC04A')
-    const arte = document.getElementById('fondoReino')
-    arte.style.backgroundImage = `url('${arteServidor(id)}')`
+    document.getElementById('fondoReino').style.backgroundImage = `url('${arteServidor(id)}')`
     const icono = document.getElementById('servidorIcono')
     icono.hidden = !serv.rawServer.icon
     if(serv.rawServer.icon){
@@ -366,15 +633,37 @@ function pintarVistaServidor(){
     document.getElementById('servidorNombre').textContent = serv.rawServer.name
     document.getElementById('servidorChips').replaceChildren(chipLoader(loaderDeServidor(serv), serv.rawServer.minecraftVersion), chipEstado(id))
     document.getElementById('servidorDescripcion').textContent = serv.rawServer.description ?? ''
+    pintarPaneles()
+    pintarModsServidor(serv)
+    pintarCarpetas(document.getElementById('servidorCarpetas'), pathInicio.join(ConfigManager.getInstanceDirectory(), id),
+        ['saves', 'resourcepacks', 'shaderpacks', 'screenshots'])
     document.body.toggleAttribute('vistaTierras', seccionActual === 'servidor' && tierras)
+    if(seccionActual === 'servidor' && typeof window.ambienteActivo === 'function'){
+        window.ambienteActivo(tierras)
+    }
 }
 
-/* ---------- Instancias propias ---------- */
+/* ---------- Instancias propias: tarjetas ---------- */
+
+function pintarIconoInstancia(contenedor, inst){
+    const ruta = Instancias.rutaIcono(inst)
+    if(ruta){
+        const img = el('img')
+        img.alt = ''
+        img.src = pathToFileURL(ruta).href + '?v=' + Date.now()
+        img.onerror = () => {
+            contenedor.innerHTML = ICONOS_LOADER[inst.loader] ?? ICONOS_LOADER.vanilla
+        }
+        contenedor.replaceChildren(img)
+    } else {
+        contenedor.innerHTML = ICONOS_LOADER[inst.loader] ?? ICONOS_LOADER.vanilla
+    }
+}
 
 function tarjetaInstancia(inst){
     const t = el('button', 'tarjetaInstancia')
     const icono = el('span', 'iconoLoader')
-    icono.innerHTML = ICONOS_LOADER[inst.loader] ?? ICONOS_LOADER.vanilla
+    pintarIconoInstancia(icono, inst)
     const textos = el('span', 'instTextos')
     textos.append(el('span', 'instNombre', inst.nombre), el('span', 'instVersion', `${nombreLoader(inst.loader)} ${inst.mc}`))
     t.append(icono, textos)
@@ -411,7 +700,146 @@ function pintarInstancias(){
     }
 }
 
+/* ---------- Selector de loader y versiones (crear y editar) ---------- */
+
+/**
+ * Arma el selector de loader, versión de Minecraft y versión del loader.
+ * Lo usan el diálogo de crear y la pestaña General de cada instancia.
+ */
+function selectorVersiones({ loaders, version, loaderVersion, campoLoaderVersion, snapshots, error }){
+    let loader = 'vanilla'
+    let pedido = 0
+    let preferidas = {}
+
+    function llenar(select, opciones, textoVacio, preferida){
+        select.replaceChildren()
+        if(opciones.length === 0){
+            const o = el('option', null, textoVacio)
+            o.value = ''
+            select.append(o)
+            select.disabled = true
+            return
+        }
+        select.disabled = false
+        // La versión actual siempre aparece, aunque sea snapshot o ya no se liste.
+        if(preferida && !opciones.some(o => o.id === preferida)){
+            opciones = [{ id: preferida }, ...opciones]
+        }
+        for(const op of opciones){
+            const o = el('option', null, op.estable === false ? `${op.id} (${tInicio('inestable')})` : op.id)
+            o.value = op.id
+            select.append(o)
+        }
+        if(preferida){
+            select.value = preferida
+        }
+    }
+
+    function pintarLoaders(){
+        loaders.replaceChildren()
+        for(const l of Object.values(Instancias.LOADERS)){
+            const op = el('label', 'opcionLoader')
+            const radio = el('input')
+            radio.type = 'radio'
+            radio.name = loaders.id
+            radio.value = l.id
+            radio.disabled = !l.disponible
+            radio.checked = l.id === loader
+            op.toggleAttribute('elegido', radio.checked)
+            op.toggleAttribute('deshabilitado', !l.disponible)
+            radio.addEventListener('change', () => {
+                loader = l.id
+                for(const o of loaders.children){
+                    o.toggleAttribute('elegido', o.querySelector('input').value === l.id)
+                }
+                cargar()
+            })
+            const icono = el('span', 'iconoLoader')
+            icono.innerHTML = ICONOS_LOADER[l.id]
+            op.append(radio, icono, el('span', 'opcionNombre', l.nombre))
+            if(!l.disponible){
+                op.append(el('span', 'chipPronto', tInicio('pronto')))
+            }
+            loaders.append(op)
+        }
+    }
+
+    async function cargarLoader(){
+        const def = Instancias.LOADERS[loader]
+        if(!def.conVersion || !version.value){
+            return
+        }
+        const p = pedido
+        llenar(loaderVersion, [], tInicio('cargandoVersiones'))
+        const lista = await def.versionesLoader(version.value)
+        if(p !== pedido){
+            return
+        }
+        // Primero la estable más nueva.
+        lista.sort((a, b) => (b.estable === true) - (a.estable === true))
+        llenar(loaderVersion, lista, tInicio('sinVersiones'), preferidas.loaderVersion)
+    }
+
+    async function cargar(){
+        const p = ++pedido
+        const def = Instancias.LOADERS[loader]
+        error.hidden = true
+        llenar(version, [], tInicio('cargandoVersiones'))
+        campoLoaderVersion.hidden = !def.conVersion
+        try {
+            const lista = await def.versionesMinecraft(snapshots.checked)
+            if(p !== pedido){
+                return
+            }
+            llenar(version, lista, tInicio('sinVersiones'), preferidas.mc)
+            await cargarLoader()
+        } catch(err) {
+            loggerInicio.warn('No se pudieron cargar las versiones.', err.message)
+            if(p === pedido){
+                llenar(version, [], tInicio('sinVersiones'))
+                error.textContent = tInicio('errorVersiones')
+                error.hidden = false
+            }
+        }
+    }
+
+    version.addEventListener('change', () => {
+        preferidas.loaderVersion = null
+        cargarLoader().catch(err => loggerInicio.warn(err.message))
+    })
+    snapshots.addEventListener('change', () => cargar())
+
+    return {
+        reiniciar(nuevo = 'vanilla', mc = null, lv = null){
+            loader = nuevo
+            preferidas = { mc, loaderVersion: lv }
+            snapshots.checked = false
+            pintarLoaders()
+            cargar()
+        },
+        valor(){
+            const def = Instancias.LOADERS[loader]
+            return {
+                loader,
+                mc: version.value,
+                loaderVersion: def.conVersion ? loaderVersion.value : null,
+                completo: !!version.value && (!def.conVersion || !!loaderVersion.value)
+            }
+        }
+    }
+}
+
+/* ---------- Vista de instancia ---------- */
+
 const GB = 1024 * 1024 * 1024
+const JVM_DEFECTO = [
+    '-XX:+UnlockExperimentalVMOptions',
+    '-XX:+UseG1GC',
+    '-XX:G1NewSizePercent=20',
+    '-XX:G1ReservePercent=20',
+    '-XX:MaxGCPauseMillis=50',
+    '-XX:G1HeapRegionSize=32M'
+]
 
 function ramAGb(valor){
     if(valor == null){
@@ -425,19 +853,52 @@ function gbATexto(gb){
     return gb % 1 === 0 ? `${gb}G` : `${Math.round(gb * 1024)}M`
 }
 
-function abrirInstancia(id){
+const seccionInstancia = document.getElementById('seccionInstancia')
+const editor = selectorVersiones({
+    loaders: document.getElementById('editLoaders'),
+    version: document.getElementById('editVersion'),
+    loaderVersion: document.getElementById('editLoaderVersion'),
+    campoLoaderVersion: document.getElementById('editLoaderVersionCampo'),
+    snapshots: document.getElementById('editSnapshots'),
+    error: document.getElementById('editError')
+})
+
+function pintarCabezaInstancia(inst){
+    pintarIconoInstancia(document.getElementById('instanciaIcono'), inst)
+    pintarIconoInstancia(document.getElementById('editIconoVista'), inst)
+    document.getElementById('instanciaNombre').textContent = inst.nombre
+    const extra = inst.loaderVersion ? ` · ${tInicio('loaderVersion', { version: inst.loaderVersion })}` : ''
+    document.getElementById('instanciaVersion').textContent = `${nombreLoader(inst.loader)} ${inst.mc}${extra}`
+}
+
+function abrirInstancia(id, pestana = 'general'){
     const inst = Instancias.obtener(id)
     if(inst == null){
         return
     }
     instanciaAbierta = id
-    document.getElementById('instanciaIcono').innerHTML = ICONOS_LOADER[inst.loader] ?? ICONOS_LOADER.vanilla
-    document.getElementById('instanciaNombre').textContent = inst.nombre
-    const extra = inst.loaderVersion ? ` · ${tInicio('loaderVersion', { version: inst.loaderVersion })}` : ''
-    document.getElementById('instanciaVersion').textContent = `${nombreLoader(inst.loader)} ${inst.mc}${extra}`
+    pintarCabezaInstancia(inst)
 
-    // RAM y Java propios: se guardan con el id de la instancia, como los servidores.
-    ConfigManager.ensureJavaConfig(id, { suggestedMajor: 21 }, null)
+    // General
+    document.getElementById('editNombre').value = inst.nombre
+    document.getElementById('editGuardado').hidden = true
+    editor.reiniciar(inst.loader, inst.mc, inst.loaderVersion)
+
+    // Mods solo con loader.
+    const conMods = inst.loader !== 'vanilla'
+    document.getElementById('pestanaModsInstancia').hidden = !conMods
+    if(pestana === 'mods' && !conMods){
+        pestana = 'general'
+    }
+
+    // Carpetas
+    const carpetas = conMods
+        ? ['mods', 'saves', 'resourcepacks', 'shaderpacks', 'screenshots', 'logs', 'config']
+        : ['saves', 'resourcepacks', 'shaderpacks', 'screenshots', 'logs']
+    pintarCarpetas(document.getElementById('instanciaCarpetas'), Instancias.carpeta(id), carpetas)
+
+    // Rendimiento: RAM, Java y argumentos propios (se guardan con el id de la instancia).
+    ConfigManager.ensureJavaConfig(id, { suggestedMajor: 17 }, ConfigManager.getRamPorDefecto() != null ? { recommended: ConfigManager.getRamPorDefecto() } : null)
     const total = require('os').totalmem() / GB
     const rango = document.getElementById('instanciaRam')
     rango.max = Math.max(2, Math.floor(total - 1))
@@ -445,9 +906,175 @@ function abrirInstancia(id){
     document.getElementById('instanciaRamValor').textContent = `${rango.value} GB`
     document.getElementById('instanciaRamTotal').textContent = tInicio('instMemoriaTotal', { total: total.toFixed(1) })
     document.getElementById('instanciaJava').textContent = ConfigManager.getJavaExecutable(id) ?? tInicio('instJavaNinguno')
+    document.getElementById('instanciaJvm').value = ConfigManager.getJVMOptions(id).join(' ')
+    document.getElementById('jvmGuardado').hidden = true
+
+    elegirPestana('instancia', pestana)
+    if(pestana === 'mods'){
+        cargarModsInstancia()
+    }
     irA('instancia')
 }
 
+seccionInstancia.querySelector('[data-accion="jugar"]').addEventListener('click', () => lanzarInstancia(instanciaAbierta))
+
+// General: nombre, ícono, loader y versión.
+document.getElementById('formEditar').addEventListener('submit', e => {
+    e.preventDefault()
+    const inst = Instancias.obtener(instanciaAbierta)
+    const nombre = document.getElementById('editNombre').value.trim()
+    const v = editor.valor()
+    const error = document.getElementById('editError')
+    if(!nombre || !v.completo){
+        error.textContent = tInicio('errorIncompleto')
+        error.hidden = false
+        return
+    }
+    const guardar = () => {
+        Instancias.actualizar(inst.id, { nombre, mc: v.mc, loader: v.loader, loaderVersion: v.loaderVersion })
+        const nueva = Instancias.obtener(inst.id)
+        pintarCabezaInstancia(nueva)
+        document.getElementById('pestanaModsInstancia').hidden = nueva.loader === 'vanilla'
+        document.getElementById('editGuardado').hidden = false
+        pintarInstancias()
+        pintarContinuar()
+    }
+    const cambiaVersion = v.mc !== inst.mc || v.loader !== inst.loader || v.loaderVersion !== inst.loaderVersion
+    if(cambiaVersion){
+        confirmar(tInicio('cambiarVersionTitulo'), tInicio('cambiarVersionTexto'), tInicio('cambiarVersionSi'), guardar)
+    } else {
+        guardar()
+    }
+})
+document.getElementById('editNombre').addEventListener('input', () => {
+    document.getElementById('editGuardado').hidden = true
+})
+seccionInstancia.querySelector('[data-accion="iconoElegir"]').addEventListener('click', async () => {
+    const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+        title: tInicio('editIconoElegir'),
+        properties: ['openFile'],
+        filters: [{ name: tInicio('imagenes'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
+    })
+    if(!res.canceled && res.filePaths.length > 0){
+        await Instancias.ponerIcono(instanciaAbierta, res.filePaths[0])
+        pintarCabezaInstancia(Instancias.obtener(instanciaAbierta))
+        pintarInstancias()
+    }
+})
+seccionInstancia.querySelector('[data-accion="iconoQuitar"]').addEventListener('click', async () => {
+    await Instancias.ponerIcono(instanciaAbierta, null)
+    pintarCabezaInstancia(Instancias.obtener(instanciaAbierta))
+    pintarInstancias()
+})
+
+// Mods
+const carpetaMods = () => pathInicio.join(Instancias.carpeta(instanciaAbierta), 'mods')
+let cargaMods = 0
+
+async function cargarModsInstancia(){
+    const n = ++cargaMods
+    const cont = document.getElementById('instanciaMods')
+    const resumen = document.getElementById('modsResumen')
+    resumen.textContent = tInicio('cargando')
+    const mods = await ModsJar.listar(carpetaMods())
+    if(n !== cargaMods){
+        return
+    }
+    cont.replaceChildren()
+    const activos = mods.filter(m => m.activo).length
+    resumen.textContent = mods.length > 0 ? tInicio('modsResumen', { activos, total: mods.length }) : ''
+    if(mods.length === 0){
+        cont.append(vacio(tInicio('modsVacio')))
+        return
+    }
+    for(const m of mods){
+        const fila = el('div', 'filaMod')
+        fila.toggleAttribute('apagado', !m.activo)
+        const interruptor = el('label', 'interruptor')
+        interruptor.title = m.activo ? tInicio('modDesactivar') : tInicio('modActivar')
+        const chk = el('input')
+        chk.type = 'checkbox'
+        chk.checked = m.activo
+        chk.setAttribute('aria-label', `${m.nombre}: ${interruptor.title}`)
+        chk.addEventListener('change', async () => {
+            try {
+                await ModsJar.alternar(m.ruta, chk.checked)
+            } catch(err) {
+                loggerInicio.error('No se pudo cambiar el mod.', err)
+                mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
+            }
+            cargarModsInstancia()
+        })
+        interruptor.append(chk, el('span', 'interruptorRiel'))
+        const textos = el('div', 'modTextos')
+        textos.append(el('span', 'modNombre', m.nombre))
+        textos.append(el('span', 'modVersion', [m.version, m.archivo].filter(Boolean).join(' · ')))
+        const borrar = el('button', 'botonIcono')
+        borrar.innerHTML = ICONO_PAPELERA
+        borrar.title = tInicio('modBorrar')
+        borrar.setAttribute('aria-label', `${tInicio('modBorrar')}: ${m.nombre}`)
+        borrar.addEventListener('click', () => {
+            confirmar(tInicio('modBorrarTitulo', { nombre: m.nombre }), tInicio('modBorrarTexto'), tInicio('borrarSi'), async () => {
+                if(!await aLaPapelera(m.ruta)){
+                    mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
+                }
+                cargarModsInstancia()
+            })
+        })
+        fila.append(interruptor, textos, borrar)
+        cont.append(fila)
+    }
+}
+
+async function agregarMods(rutas){
+    const jars = rutas.filter(r => /\.jar$/i.test(r))
+    if(jars.length === 0){
+        return
+    }
+    try {
+        await ModsJar.agregar(carpetaMods(), jars)
+    } catch(err) {
+        loggerInicio.error('No se pudieron agregar los mods.', err)
+        mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
+    }
+    cargarModsInstancia()
+}
+
+seccionInstancia.querySelector('[data-accion="modsCarpeta"]').addEventListener('click', () => abrirCarpeta(carpetaMods()))
+seccionInstancia.querySelector('[data-accion="modsAgregar"]').addEventListener('click', async () => {
+    const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+        title: tInicio('modsAgregar'),
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Mods', extensions: ['jar'] }]
+    })
+    if(!res.canceled){
+        agregarMods(res.filePaths)
+    }
+})
+
+const pestanaMods = seccionInstancia.querySelector('.pestana[data-pestana="mods"]')
+const zonaSoltar = document.getElementById('zonaSoltar')
+let arrastres = 0
+pestanaMods.addEventListener('dragenter', e => {
+    e.preventDefault()
+    arrastres++
+    zonaSoltar.setAttribute('activa', '')
+})
+pestanaMods.addEventListener('dragleave', () => {
+    if(--arrastres <= 0){
+        arrastres = 0
+        zonaSoltar.removeAttribute('activa')
+    }
+})
+pestanaMods.addEventListener('drop', e => {
+    e.preventDefault()
+    arrastres = 0
+    zonaSoltar.removeAttribute('activa')
+    const { webUtils } = require('electron')
+    agregarMods([...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean))
+})
+
+// Rendimiento
 document.getElementById('instanciaRam').addEventListener('input', e => {
     document.getElementById('instanciaRamValor').textContent = `${e.target.value} GB`
 })
@@ -456,14 +1083,6 @@ document.getElementById('instanciaRam').addEventListener('change', e => {
     ConfigManager.setMaxRAM(instanciaAbierta, valor)
     ConfigManager.setMinRAM(instanciaAbierta, valor)
     ConfigManager.save()
-})
-
-const seccionInstancia = document.getElementById('seccionInstancia')
-seccionInstancia.querySelector('[data-accion="jugar"]').addEventListener('click', () => lanzarInstancia(instanciaAbierta))
-seccionInstancia.querySelector('[data-accion="carpeta"]').addEventListener('click', async () => {
-    const carpeta = Instancias.carpeta(instanciaAbierta)
-    await require('fs-extra').ensureDir(carpeta)
-    shell.openPath(carpeta)
 })
 seccionInstancia.querySelector('[data-accion="java"]').addEventListener('click', async () => {
     const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
@@ -483,24 +1102,47 @@ seccionInstancia.querySelector('[data-accion="javaAuto"]').addEventListener('cli
     ConfigManager.save()
     document.getElementById('instanciaJava').textContent = tInicio('instJavaNinguno')
 })
+seccionInstancia.querySelector('[data-accion="jvmGuardar"]').addEventListener('click', () => {
+    const args = document.getElementById('instanciaJvm').value.split(/\s+/).filter(Boolean)
+    ConfigManager.setJVMOptions(instanciaAbierta, args)
+    ConfigManager.save()
+    document.getElementById('jvmGuardado').hidden = false
+})
+seccionInstancia.querySelector('[data-accion="jvmDefecto"]').addEventListener('click', () => {
+    ConfigManager.setJVMOptions(instanciaAbierta, [...JVM_DEFECTO])
+    ConfigManager.save()
+    document.getElementById('instanciaJvm').value = JVM_DEFECTO.join(' ')
+    document.getElementById('jvmGuardado').hidden = false
+})
+document.getElementById('instanciaJvm').addEventListener('input', () => {
+    document.getElementById('jvmGuardado').hidden = true
+})
+
+// Duplicar y borrar
+seccionInstancia.querySelector('[data-accion="duplicar"]').addEventListener('click', async e => {
+    const boton = e.currentTarget
+    const inst = Instancias.obtener(instanciaAbierta)
+    boton.disabled = true
+    boton.textContent = tInicio('duplicando')
+    try {
+        const copia = await Instancias.duplicar(inst.id, tInicio('copiaDe', { nombre: inst.nombre }).substring(0, 40))
+        pintarInstancias()
+        abrirInstancia(copia.id)
+    } catch(err) {
+        loggerInicio.error('No se pudo duplicar la instancia.', err)
+        mostrarError(tInicio('duplicarErrorTitulo'), tInicio('duplicarErrorTexto'))
+    } finally {
+        boton.disabled = false
+        boton.textContent = tInicio('instDuplicar')
+    }
+})
 seccionInstancia.querySelector('[data-accion="borrar"]').addEventListener('click', () => {
     const inst = Instancias.obtener(instanciaAbierta)
-    setOverlayContent(
-        tInicio('borrarTitulo', { nombre: inst.nombre }),
-        tInicio('borrarTexto'),
-        tInicio('borrarSi'),
-        tInicio('cancelar')
-    )
-    setOverlayHandler(async () => {
-        toggleOverlay(false)
+    confirmar(tInicio('borrarTitulo', { nombre: inst.nombre }), tInicio('borrarTexto'), tInicio('borrarSi'), async () => {
         const carpeta = Instancias.carpeta(inst.id)
-        if(await require('fs-extra').pathExists(carpeta)){
-            const res = await ipcRenderer.invoke(SHELL_OPCODE.TRASH_ITEM, carpeta)
-            if(!res.result){
-                loggerInicio.error('No se pudo mandar la carpeta a la papelera.', res.error)
-                mostrarError(tInicio('borrarErrorTitulo'), tInicio('borrarErrorTexto'))
-                return
-            }
+        if(await fsInicio.pathExists(carpeta) && !await aLaPapelera(carpeta)){
+            mostrarError(tInicio('borrarErrorTitulo'), tInicio('borrarErrorTexto'))
+            return
         }
         Instancias.quitar(inst.id)
         if(ConfigManager.getUltimaSeleccion()?.id === inst.id){
@@ -511,124 +1153,27 @@ seccionInstancia.querySelector('[data-accion="borrar"]').addEventListener('click
         pintarContinuar()
         irA('instancias')
     })
-    setDismissHandler(() => toggleOverlay(false))
-    toggleOverlay(true, true)
 })
-
-function mostrarError(titulo, texto){
-    setOverlayContent(titulo, `<img class="overlayMascota" src="${IMG}/mascota-error.png" alt="">${texto}`, tInicio('entendido'))
-    setOverlayHandler(null)
-    toggleOverlay(true)
-}
 
 /* ---------- Crear instancia ---------- */
 
 const modalCrear = document.getElementById('modalCrear')
 const formCrear = document.getElementById('formCrear')
-const crearVersion = document.getElementById('crearVersion')
-const crearLoaderVersion = document.getElementById('crearLoaderVersion')
 const crearError = document.getElementById('crearError')
-let loaderElegido = 'vanilla'
-let pedidoVersiones = 0
-
-function pintarOpcionesLoader(){
-    const cont = document.getElementById('crearLoaders')
-    cont.replaceChildren()
-    for(const l of Object.values(Instancias.LOADERS)){
-        const op = el('label', 'opcionLoader')
-        const radio = el('input')
-        radio.type = 'radio'
-        radio.name = 'loader'
-        radio.value = l.id
-        radio.disabled = !l.disponible
-        radio.checked = l.id === loaderElegido
-        op.toggleAttribute('elegido', radio.checked)
-        op.toggleAttribute('deshabilitado', !l.disponible)
-        radio.addEventListener('change', () => {
-            loaderElegido = l.id
-            for(const o of cont.children){
-                o.toggleAttribute('elegido', o.querySelector('input').value === l.id)
-            }
-            cargarVersiones()
-        })
-        const icono = el('span', 'iconoLoader')
-        icono.innerHTML = ICONOS_LOADER[l.id]
-        op.append(radio, icono, el('span', 'opcionNombre', l.nombre))
-        if(!l.disponible){
-            op.append(el('span', 'chipPronto', tInicio('pronto')))
-        }
-        cont.append(op)
-    }
-}
-
-function llenarSelect(select, opciones, textoVacio){
-    select.replaceChildren()
-    if(opciones.length === 0){
-        const o = el('option', null, textoVacio)
-        o.value = ''
-        select.append(o)
-        select.disabled = true
-        return
-    }
-    select.disabled = false
-    for(const op of opciones){
-        const o = el('option', null, op.estable === false ? `${op.id} (${tInicio('inestable')})` : op.id)
-        o.value = op.id
-        select.append(o)
-    }
-}
-
-async function cargarVersiones(){
-    const pedido = ++pedidoVersiones
-    const loader = Instancias.LOADERS[loaderElegido]
-    crearError.hidden = true
-    llenarSelect(crearVersion, [], tInicio('cargandoVersiones'))
-    document.getElementById('crearLoaderVersionCampo').hidden = !loader.conVersion
-    try {
-        const versiones = await loader.versionesMinecraft(document.getElementById('crearSnapshots').checked)
-        if(pedido !== pedidoVersiones){
-            return
-        }
-        llenarSelect(crearVersion, versiones, tInicio('sinVersiones'))
-        await cargarVersionesLoader()
-    } catch(err) {
-        loggerInicio.warn('No se pudieron cargar las versiones.', err.message)
-        if(pedido === pedidoVersiones){
-            llenarSelect(crearVersion, [], tInicio('sinVersiones'))
-            crearError.textContent = tInicio('errorVersiones')
-            crearError.hidden = false
-        }
-    }
-}
-
-async function cargarVersionesLoader(){
-    const loader = Instancias.LOADERS[loaderElegido]
-    if(!loader.conVersion || !crearVersion.value){
-        return
-    }
-    const pedido = pedidoVersiones
-    llenarSelect(crearLoaderVersion, [], tInicio('cargandoVersiones'))
-    const versiones = await loader.versionesLoader(crearVersion.value)
-    if(pedido !== pedidoVersiones){
-        return
-    }
-    // Primero la estable más nueva.
-    versiones.sort((a, b) => (b.estable === true) - (a.estable === true))
-    llenarSelect(crearLoaderVersion, versiones, tInicio('sinVersiones'))
-}
-
-crearVersion.addEventListener('change', () => {
-    cargarVersionesLoader().catch(err => loggerInicio.warn(err.message))
+const creador = selectorVersiones({
+    loaders: document.getElementById('crearLoaders'),
+    version: document.getElementById('crearVersion'),
+    loaderVersion: document.getElementById('crearLoaderVersion'),
+    campoLoaderVersion: document.getElementById('crearLoaderVersionCampo'),
+    snapshots: document.getElementById('crearSnapshots'),
+    error: crearError
 })
-document.getElementById('crearSnapshots').addEventListener('change', () => cargarVersiones())
 
 function abrirCrear(){
-    loaderElegido = 'vanilla'
     formCrear.reset()
-    pintarOpcionesLoader()
+    creador.reiniciar('vanilla')
     modalCrear.hidden = false
     document.getElementById('crearNombre').focus()
-    cargarVersiones()
 }
 
 function cerrarCrear(){
@@ -649,19 +1194,14 @@ modalCrear.addEventListener('keydown', e => {
 formCrear.addEventListener('submit', e => {
     e.preventDefault()
     const nombre = document.getElementById('crearNombre').value.trim()
-    const loader = Instancias.LOADERS[loaderElegido]
-    if(!nombre || !crearVersion.value || (loader.conVersion && !crearLoaderVersion.value)){
+    const v = creador.valor()
+    if(!nombre || !v.completo){
         crearError.textContent = tInicio('errorIncompleto')
         crearError.hidden = false
         return
     }
     try {
-        const inst = Instancias.crear({
-            nombre,
-            mc: crearVersion.value,
-            loader: loaderElegido,
-            loaderVersion: crearLoaderVersion.value || null
-        })
+        const inst = Instancias.crear({ nombre, mc: v.mc, loader: v.loader, loaderVersion: v.loaderVersion })
         cerrarCrear()
         pintarInstancias()
         abrirInstancia(inst.id)
@@ -712,6 +1252,44 @@ async function abrirAjustesEn(pestana){
 seccionPerfil.querySelector('[data-accion="skin"]').addEventListener('click', () => abrirAjustesEn('settingsTabSkin'))
 seccionPerfil.querySelector('[data-accion="cuentas"]').addEventListener('click', () => abrirAjustesEn('settingsTabAccount'))
 
+/* ---------- Ajustes del launcher: idioma y RAM por defecto ---------- */
+
+const ajusteIdioma = document.getElementById('ajusteIdioma')
+const ajusteRam = document.getElementById('ajusteRam')
+const ajusteRamAuto = document.getElementById('ajusteRamAuto')
+
+function pintarAjustesLauncher(){
+    ajusteIdioma.value = ConfigManager.getIdioma()
+    const total = require('os').totalmem() / GB
+    ajusteRam.max = Math.max(2, Math.floor(total - 1))
+    const mb = ConfigManager.getRamPorDefecto()
+    ajusteRamAuto.checked = mb == null
+    ajusteRam.disabled = mb == null
+    ajusteRam.value = mb != null ? mb / 1024 : ramAGb(ConfigManager.getRamPorDefectoTexto())
+    document.getElementById('ajusteRamValor').textContent = `${ajusteRam.value} GB`
+}
+
+ajusteIdioma.addEventListener('change', () => {
+    ConfigManager.setIdioma(ajusteIdioma.value)
+    ConfigManager.save()
+    confirmar(tInicio('idiomaTitulo'), tInicio('idiomaTexto'), tInicio('idiomaReiniciar'), () => {
+        remote.app.relaunch()
+        remote.app.exit(0)
+    })
+})
+ajusteRamAuto.addEventListener('change', () => {
+    ConfigManager.setRamPorDefecto(ajusteRamAuto.checked ? null : Math.round(parseFloat(ajusteRam.value) * 1024))
+    ConfigManager.save()
+    pintarAjustesLauncher()
+})
+ajusteRam.addEventListener('input', () => {
+    document.getElementById('ajusteRamValor').textContent = `${ajusteRam.value} GB`
+})
+ajusteRam.addEventListener('change', () => {
+    ConfigManager.setRamPorDefecto(Math.round(parseFloat(ajusteRam.value) * 1024))
+    ConfigManager.save()
+})
+
 /* ---------- Arranque ---------- */
 
 async function cargarExtras(){
@@ -736,6 +1314,7 @@ function pintarTodo(){
 function iniciarInicio(data){
     distroInicio = data
     pintarTodo()
+    pintarAjustesLauncher()
     cargarExtras().then(() => {
         pintarTodo()
         if(seccionActual === 'servidor'){

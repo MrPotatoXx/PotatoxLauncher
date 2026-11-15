@@ -86,7 +86,9 @@ const DEFAULT_CONFIG = {
         },
         launcher: {
             allowPrerelease: false,
-            dataDirectory: dataPath
+            dataDirectory: dataPath,
+            idioma: 'es_ES',
+            ramPorDefecto: null // en MB; null = según la memoria del PC
         }
     },
     newsCache: {
@@ -296,6 +298,35 @@ exports.getUltimaSeleccion = function(){
  */
 exports.setUltimaSeleccion = function(seleccion){
     config.ultimaSeleccion = seleccion
+}
+
+/**
+ * Idioma del launcher (es_ES o en_US). Se aplica al reiniciar.
+ */
+exports.getIdioma = function(){
+    return config.settings.launcher.idioma ?? 'es_ES'
+}
+
+exports.setIdioma = function(idioma){
+    config.settings.launcher.idioma = idioma
+}
+
+/**
+ * RAM por defecto de las instancias nuevas, en MB (null = automática).
+ */
+exports.getRamPorDefecto = function(){
+    return config.settings.launcher.ramPorDefecto ?? null
+}
+
+exports.setRamPorDefecto = function(mb){
+    config.settings.launcher.ramPorDefecto = mb
+}
+
+/**
+ * La RAM que tendría una instancia nueva, con el formato de javaConfig ('4G', '3072M').
+ */
+exports.getRamPorDefectoTexto = function(){
+    return resolveSelectedRAM(exports.getRamPorDefecto() != null ? { recommended: exports.getRamPorDefecto() } : null)
 }
 
 exports.getSelectedServer = function(def = false){

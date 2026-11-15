@@ -371,7 +371,7 @@ async function refreshServerStatus(){
     reinoLeyendo = true
     reinoUltimaLectura = Date.now()
     try {
-        const res = await fetch(REINO_URL, { cache: 'no-store', signal: AbortSignal.timeout(REINO_TIMEOUT) })
+        const res = await fetch(window.urlReino || REINO_URL, { cache: 'no-store', signal: AbortSignal.timeout(REINO_TIMEOUT) })
         if(!res.ok){
             throw new Error('HTTP ' + res.status)
         }

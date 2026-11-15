@@ -142,7 +142,7 @@
             <div class="grillaTarjetas" id="listaInstancias"></div>
         </section>
 
-        <!-- Vista de un servidor -->
+        <!-- Vista de un servidor: plantilla con paneles (servidores-extra.json → paneles). -->
         <section class="seccion" id="seccionServidor" data-seccion="servidor" hidden>
             <div class="servidorHeroe">
                 <div id="fondoReino" class="servidorArte"></div>
@@ -151,7 +151,7 @@
                 <button class="botonVolver" data-volver aria-label="<%- lang('inicio.volver') %>">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
                 </button>
-                <!-- El reino vivo de Tierras Malditas (reino.js): solo se ve en su vista. -->
+                <!-- Panel "tierras" (reino.js): Prueba, voz de Aldric y rótulo de la luna. -->
                 <div id="reinoEscena">
                     <div id="pruebaBarra" style="display: none;">
                         <div id="pruebaTexto"></div>
@@ -180,11 +180,28 @@
                     </div>
                 </div>
             </div>
+            <div class="pestanas" role="tablist" data-grupo="servidor">
+                <button role="tab" data-pestana="resumen" aria-selected="true"><%- lang('inicio.pestResumen') %></button>
+                <button role="tab" data-pestana="mods" aria-selected="false"><%- lang('inicio.pestMods') %></button>
+                <button role="tab" data-pestana="carpetas" aria-selected="false"><%- lang('inicio.pestCarpetas') %></button>
+            </div>
             <div class="servidorCuerpo">
-                <p id="servidorDescripcion" class="textoSuave"></p>
-                <div id="cronicasPanel">
-                    <h3 id="cronicasTitulo" class="tituloPixel"><%- lang('landing.cronicasTitle') %></h3>
-                    <div id="cronicasLista"></div>
+                <div class="pestana" data-grupo="servidor" data-pestana="resumen">
+                    <p id="servidorDescripcion" class="textoSuave"></p>
+                    <div id="panelesServidor" class="grillaPaneles"></div>
+                    <!-- Crónicas del panel "tierras"; inicio.js lo mueve dentro de su panel. -->
+                    <div id="cronicasPanel">
+                        <h3 id="cronicasTitulo" class="tituloPixel"><%- lang('landing.cronicasTitle') %></h3>
+                        <div id="cronicasLista"></div>
+                    </div>
+                </div>
+                <div class="pestana" data-grupo="servidor" data-pestana="mods" hidden>
+                    <p class="textoSuave"><%- lang('inicio.modsServidorNota') %></p>
+                    <div id="servidorMods" class="listaMods"></div>
+                </div>
+                <div class="pestana" data-grupo="servidor" data-pestana="carpetas" hidden>
+                    <p class="textoSuave"><%- lang('inicio.carpetasServidorNota') %></p>
+                    <div id="servidorCarpetas" class="grillaCarpetas"></div>
                 </div>
             </div>
         </section>
@@ -202,33 +219,104 @@
                 </div>
                 <button class="botonJugar" data-accion="jugar"><%- lang('landing.launchButton') %></button>
             </div>
-            <div class="panelesInstancia">
-                <section class="panel">
-                    <h3><%- lang('inicio.instCarpetaTitulo') %></h3>
-                    <p class="textoSuave"><%- lang('inicio.instCarpetaTexto') %></p>
-                    <button class="botonSecundario" data-accion="carpeta"><%- lang('inicio.instAbrirCarpeta') %></button>
-                </section>
-                <section class="panel">
-                    <h3><%- lang('inicio.instMemoriaTitulo') %></h3>
-                    <label class="filaRango">
-                        <input type="range" id="instanciaRam" min="1" max="16" step="0.5">
-                        <span id="instanciaRamValor"></span>
+            <div class="pestanas" role="tablist" data-grupo="instancia">
+                <button role="tab" data-pestana="general" aria-selected="true"><%- lang('inicio.pestGeneral') %></button>
+                <button role="tab" data-pestana="mods" aria-selected="false" id="pestanaModsInstancia"><%- lang('inicio.pestMods') %></button>
+                <button role="tab" data-pestana="carpetas" aria-selected="false"><%- lang('inicio.pestCarpetas') %></button>
+                <button role="tab" data-pestana="rendimiento" aria-selected="false"><%- lang('inicio.pestRendimiento') %></button>
+            </div>
+
+            <div class="pestana" data-grupo="instancia" data-pestana="general">
+                <form class="panel formInstancia" id="formEditar" autocomplete="off">
+                    <label class="campo">
+                        <span><%- lang('inicio.crearNombre') %></span>
+                        <input type="text" id="editNombre" maxlength="40" required>
                     </label>
-                    <p class="textoSuave" id="instanciaRamTotal"></p>
-                </section>
-                <section class="panel">
-                    <h3><%- lang('inicio.instJavaTitulo') %></h3>
-                    <p class="textoSuave" id="instanciaJava"></p>
-                    <div class="filaBotones">
-                        <button class="botonSecundario" data-accion="java"><%- lang('inicio.instElegirJava') %></button>
-                        <button class="botonSecundario" data-accion="javaAuto"><%- lang('inicio.instJavaAuto') %></button>
+                    <div class="campo">
+                        <span><%- lang('inicio.editIcono') %></span>
+                        <div class="filaIcono">
+                            <span id="editIconoVista" class="iconoLoader grande"></span>
+                            <button type="button" class="botonSecundario" data-accion="iconoElegir"><%- lang('inicio.editIconoElegir') %></button>
+                            <button type="button" class="botonSecundario" data-accion="iconoQuitar"><%- lang('inicio.editIconoQuitar') %></button>
+                        </div>
                     </div>
-                </section>
-                <section class="panel peligro">
-                    <h3><%- lang('inicio.instBorrarTitulo') %></h3>
-                    <p class="textoSuave"><%- lang('inicio.instBorrarTexto') %></p>
-                    <button class="botonPeligro" data-accion="borrar"><%- lang('inicio.instBorrar') %></button>
-                </section>
+                    <fieldset class="campo">
+                        <legend><%- lang('inicio.crearLoader') %></legend>
+                        <div id="editLoaders" class="opcionesLoader"></div>
+                    </fieldset>
+                    <div class="filaCampos">
+                        <label class="campo">
+                            <span><%- lang('inicio.crearVersion') %></span>
+                            <select id="editVersion" required></select>
+                        </label>
+                        <label class="campo" id="editLoaderVersionCampo">
+                            <span><%- lang('inicio.crearLoaderVersion') %></span>
+                            <select id="editLoaderVersion"></select>
+                        </label>
+                    </div>
+                    <label class="casilla">
+                        <input type="checkbox" id="editSnapshots">
+                        <span><%- lang('inicio.crearSnapshots') %></span>
+                    </label>
+                    <p class="avisoVersion"><%- lang('inicio.editAvisoVersion') %></p>
+                    <p id="editError" class="textoError" hidden></p>
+                    <div class="modalAcciones">
+                        <span id="editGuardado" class="textoSuave" hidden><%- lang('inicio.editGuardado') %></span>
+                        <button type="submit" class="botonPrincipal"><%- lang('inicio.editGuardar') %></button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="pestana" data-grupo="instancia" data-pestana="mods" hidden>
+                <div class="barraMods">
+                    <button class="botonSecundario" data-accion="modsCarpeta"><%- lang('inicio.modsAbrirCarpeta') %></button>
+                    <button class="botonSecundario" data-accion="modsAgregar"><%- lang('inicio.modsAgregar') %></button>
+                    <span class="textoSuave" id="modsResumen"></span>
+                </div>
+                <div id="zonaSoltar" class="zonaSoltar">
+                    <span><%- lang('inicio.modsSoltar') %></span>
+                </div>
+                <div id="instanciaMods" class="listaMods"></div>
+            </div>
+
+            <div class="pestana" data-grupo="instancia" data-pestana="carpetas" hidden>
+                <div id="instanciaCarpetas" class="grillaCarpetas"></div>
+            </div>
+
+            <div class="pestana" data-grupo="instancia" data-pestana="rendimiento" hidden>
+                <div class="panelesInstancia">
+                    <section class="panel">
+                        <h3><%- lang('inicio.instMemoriaTitulo') %></h3>
+                        <label class="filaRango">
+                            <input type="range" id="instanciaRam" min="1" max="16" step="0.5">
+                            <span id="instanciaRamValor"></span>
+                        </label>
+                        <p class="textoSuave" id="instanciaRamTotal"></p>
+                    </section>
+                    <section class="panel">
+                        <h3><%- lang('inicio.instJavaTitulo') %></h3>
+                        <p class="textoSuave" id="instanciaJava"></p>
+                        <div class="filaBotones">
+                            <button class="botonSecundario" data-accion="java"><%- lang('inicio.instElegirJava') %></button>
+                            <button class="botonSecundario" data-accion="javaAuto"><%- lang('inicio.instJavaAuto') %></button>
+                        </div>
+                    </section>
+                    <section class="panel anchoCompleto">
+                        <h3><%- lang('inicio.instJvmTitulo') %></h3>
+                        <p class="textoSuave"><%- lang('inicio.instJvmTexto') %></p>
+                        <textarea id="instanciaJvm" rows="3" spellcheck="false"></textarea>
+                        <div class="filaBotones">
+                            <button class="botonSecundario" data-accion="jvmGuardar"><%- lang('inicio.editGuardar') %></button>
+                            <button class="botonSecundario" data-accion="jvmDefecto"><%- lang('inicio.instJvmDefecto') %></button>
+                            <span id="jvmGuardado" class="textoSuave" hidden><%- lang('inicio.editGuardado') %></span>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div class="instanciaPie">
+                <button class="botonSecundario" data-accion="duplicar"><%- lang('inicio.instDuplicar') %></button>
+                <button class="botonPeligro" data-accion="borrar"><%- lang('inicio.instBorrar') %></button>
             </div>
         </section>
 

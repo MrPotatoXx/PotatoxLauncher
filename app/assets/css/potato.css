@@ -1014,6 +1014,7 @@ a.tarjetaNoticia:hover {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    min-height: 120px;
     padding: 22px 28px 28px;
     border-radius: 0 0 12px 12px;
     background: var(--piedra-clara);
@@ -1545,4 +1546,440 @@ body[lanzando] .lanzamientoMascota {
 #welcomeButton,
 .loginOptionButton {
     border-radius: var(--radio-chico);
+}
+
+/*******************************************************************************
+ * Pestañas
+ ******************************************************************************/
+
+.pestanas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.pestanas [role="tab"] {
+    padding: 9px 16px;
+    border: 0;
+    border-radius: var(--radio-chico);
+    background: transparent;
+    color: var(--texto-suave);
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pestanas [role="tab"]:hover {
+    color: var(--hueso);
+    background: rgba(255, 255, 255, 0.05);
+}
+.pestanas [role="tab"][aria-selected="true"] {
+    color: var(--hueso);
+    background: var(--piedra-clara);
+    box-shadow: inset 0 -3px 0 var(--pasto);
+}
+.pestanas [role="tab"][hidden] {
+    display: none;
+}
+.pestana[hidden] {
+    display: none !important;
+}
+.pestana {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* En la vista de servidor las pestañas van pegadas al héroe. */
+#seccionServidor .pestanas {
+    padding: 8px 20px;
+    background: var(--piedra-oscura);
+}
+#seccionServidor .pestanas [role="tab"][aria-selected="true"] {
+    background: rgba(255, 255, 255, 0.07);
+}
+#seccionServidor[tierras] .pestanas {
+    background: #0B0708;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+}
+#seccionServidor[tierras] .pestanas [role="tab"][aria-selected="true"] {
+    box-shadow: inset 0 -3px 0 #D4AF37;
+}
+.servidorCuerpo > .pestana {
+    gap: 18px;
+}
+
+/*******************************************************************************
+ * Paneles del servidor
+ ******************************************************************************/
+
+.grillaPaneles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+.grillaPaneles:empty {
+    display: none;
+}
+.panelServidor {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px 18px;
+    border-radius: var(--radio);
+    background: var(--piedra);
+}
+.panelServidor[hidden] {
+    display: none;
+}
+.panelServidor h3 {
+    margin: 0;
+    font-family: var(--fuente-pixel);
+    font-weight: 600;
+    font-size: 18px;
+}
+.anchoCompleto {
+    grid-column: 1 / -1;
+}
+.filaDato {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    font-size: 13px;
+}
+.datoEtiqueta {
+    color: var(--texto-suave);
+}
+.datoValor {
+    font-weight: 600;
+    text-align: right;
+    word-break: break-all;
+}
+.panelMotd,
+.panelTexto {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--texto-suave);
+    white-space: pre-line;
+    -webkit-user-select: text;
+}
+.listaCaras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.cara {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    border-radius: 999px;
+    background: var(--piedra-clara);
+    font-size: 13px;
+}
+.cara img {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    image-rendering: pixelated;
+}
+.panelServidor .grillaNoticias {
+    width: 100%;
+}
+.panelServidor a.botonSecundario {
+    text-decoration: none;
+}
+.panelTierras {
+    padding: 0;
+    background: transparent;
+}
+.panelTierras #cronicasPanel {
+    width: 100%;
+    margin-top: 0;
+}
+
+/* Tierras Malditas: paneles oscuros. */
+#seccionServidor[tierras] .panelServidor:not(.panelTierras) {
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.16);
+}
+#seccionServidor[tierras] .panelServidor h3 {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    color: #F0D78C;
+}
+
+/*******************************************************************************
+ * Mods
+ ******************************************************************************/
+
+.barraMods {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+.barraMods .textoSuave {
+    margin-left: auto;
+    font-size: 13px;
+}
+.zonaSoltar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    border: 2px dashed #6B7566;
+    border-radius: var(--radio);
+    color: var(--texto-suave);
+    font-size: 13px;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.zonaSoltar[activa] {
+    border-color: var(--pasto);
+    background: rgba(108, 192, 74, 0.1);
+    color: var(--hueso);
+}
+.listaMods {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.filaMod {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    border-radius: var(--radio-chico);
+    background: var(--piedra-clara);
+}
+#servidorMods .filaMod {
+    background: var(--piedra);
+}
+#seccionServidor[tierras] #servidorMods .filaMod {
+    background: rgba(255, 255, 255, 0.04);
+}
+.filaMod[apagado] .modTextos {
+    opacity: 0.55;
+}
+.modTextos {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.modNombre {
+    font-weight: 600;
+    font-size: 14px;
+}
+.modVersion {
+    font-size: 12px;
+    color: var(--texto-suave);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.interruptor {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    cursor: pointer;
+}
+.interruptor input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+.interruptorRiel {
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--piedra-borde);
+    position: relative;
+    transition: background-color 0.15s ease;
+}
+.interruptorRiel::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--hueso);
+    transition: transform 0.15s ease;
+}
+.interruptor input:checked + .interruptorRiel {
+    background: var(--pasto);
+}
+.interruptor input:checked + .interruptorRiel::after {
+    transform: translateX(16px);
+}
+.interruptor input:focus-visible + .interruptorRiel {
+    outline: 2px solid var(--pasto-claro);
+    outline-offset: 2px;
+}
+.botonIcono {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: var(--radio-chico);
+    background: transparent;
+    color: var(--texto-suave);
+}
+.botonIcono svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.botonIcono:hover {
+    background: rgba(224, 106, 90, 0.14);
+    color: #F2A497;
+}
+
+/*******************************************************************************
+ * Carpetas, formulario de la instancia y pie
+ ******************************************************************************/
+
+.grillaCarpetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 10px;
+}
+.botonCarpeta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: var(--radio);
+    background: var(--piedra-clara);
+    text-align: left;
+    transition: background-color 0.15s ease;
+}
+#servidorCarpetas .botonCarpeta {
+    background: var(--piedra);
+}
+#seccionServidor[tierras] #servidorCarpetas .botonCarpeta {
+    background: rgba(255, 255, 255, 0.05);
+}
+.botonCarpeta:hover {
+    background: var(--piedra-hover);
+}
+.botonCarpeta svg {
+    grid-row: 1 / 3;
+    width: 26px;
+    height: 26px;
+    fill: rgba(108, 192, 74, 0.25);
+    stroke: var(--pasto-claro);
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+}
+.carpetaNombre {
+    font-weight: 600;
+}
+.carpetaRuta {
+    font-size: 12px;
+    color: var(--texto-suave);
+}
+
+.formInstancia {
+    align-items: stretch;
+    gap: 14px;
+    max-width: 640px;
+}
+.filaIcono {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+.iconoLoader img {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    object-fit: cover;
+}
+.avisoVersion {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--radio-chico);
+    background: rgba(232, 176, 74, 0.12);
+    color: #F3D9A4;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.modalAcciones {
+    align-items: center;
+}
+#instanciaJvm {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--piedra-borde);
+    border-radius: var(--radio-chico);
+    background: var(--piedra-oscura);
+    color: var(--hueso);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    resize: vertical;
+    -webkit-user-select: text;
+}
+#instanciaJvm:focus {
+    outline: none;
+    border-color: var(--pasto);
+}
+.panelesInstancia .panel.anchoCompleto {
+    grid-column: 1 / -1;
+}
+.instanciaPie {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 18px;
+    border-top: 1px solid var(--piedra-borde);
+}
+
+/* Ajustes del launcher: idioma y RAM por defecto. */
+.ajusteSelect {
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--piedra-borde);
+    border-radius: var(--radio-chico);
+    background: var(--piedra-oscura);
+    color: var(--hueso);
+    font-size: 13px;
+}
+.ajusteRam {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 220px;
+}
+.ajusteRam .filaRango input:disabled {
+    opacity: 0.4;
+}
+#ajusteRamValor {
+    min-width: 56px;
+    font-family: var(--fuente-pixel);
+    font-weight: 600;
+    font-size: 16px;
+    text-align: right;
 }
