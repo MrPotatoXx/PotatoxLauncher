@@ -219,6 +219,7 @@
                             <span><%- lang('inicio.modsSoltar') %></span>
                         </div>
                         <div id="servidorModsExtra" class="listaMods"></div>
+                        <div id="buscadorServidor"></div>
                     </section>
                 </div>
                 <div class="pestana" data-grupo="servidor" data-pestana="carpetas" hidden>
@@ -290,6 +291,8 @@
             </div>
 
             <div class="pestana" data-grupo="instancia" data-pestana="mods" hidden>
+                <div id="buscadorInstancia"></div>
+                <h3 class="tituloPixel tituloInstalados"><%- lang('inicio.modsInstalados') %></h3>
                 <div class="barraMods">
                     <button class="botonSecundario" data-accion="modsCarpeta"><%- lang('inicio.modsAbrirCarpeta') %></button>
                     <button class="botonSecundario" data-accion="modsAgregar"><%- lang('inicio.modsAgregar') %></button>
@@ -337,6 +340,7 @@
             </div>
 
             <div class="instanciaPie">
+                <button class="botonSecundario" data-accion="exportar"><%- lang('inicio.instExportar') %></button>
                 <button class="botonSecundario" data-accion="duplicar"><%- lang('inicio.instDuplicar') %></button>
                 <button class="botonPeligro" data-accion="borrar"><%- lang('inicio.instBorrar') %></button>
             </div>
@@ -376,6 +380,18 @@
     <div id="modalCrear" class="modalFondo" hidden>
         <form class="modal" id="formCrear" autocomplete="off">
             <h2 class="tituloPixel"><%- lang('inicio.crearTitulo') %></h2>
+            <div class="pestanas" role="tablist" data-grupo="crear">
+                <button type="button" role="tab" data-pestana="nueva" aria-selected="true"><%- lang('inicio.crearNueva') %></button>
+                <button type="button" role="tab" data-pestana="importar" aria-selected="false"><%- lang('inicio.crearImportar') %></button>
+            </div>
+            <div class="pestana" data-grupo="crear" data-pestana="importar" hidden>
+                <div id="zonaMrpack" class="zonaSoltar zonaMrpack">
+                    <span><%- lang('inicio.mrpackSoltar') %></span>
+                    <button type="button" class="botonSecundario" data-accion="elegirMrpack"><%- lang('inicio.mrpackElegir') %></button>
+                </div>
+                <div id="buscadorModpacks"></div>
+            </div>
+            <div class="pestana" data-grupo="crear" data-pestana="nueva">
             <label class="campo">
                 <span><%- lang('inicio.crearNombre') %></span>
                 <input type="text" id="crearNombre" maxlength="40" required placeholder="<%- lang('inicio.crearNombrePlaceholder') %>">
@@ -398,6 +414,7 @@
                 <input type="checkbox" id="crearSnapshots">
                 <span><%- lang('inicio.crearSnapshots') %></span>
             </label>
+            </div>
             <p id="crearError" class="textoError" hidden></p>
             <div class="modalAcciones">
                 <button type="button" class="botonSecundario" data-accion="cancelar"><%- lang('inicio.cancelar') %></button>
@@ -406,9 +423,28 @@
         </form>
     </div>
 
+    <!-- Noticia completa -->
+    <div id="modalNoticia" class="modalFondo" hidden>
+        <article class="modal modalNoticia" role="dialog" aria-modal="true" aria-labelledby="noticiaTituloCompleto">
+            <button class="botonIcono cerrarModal" data-accion="cerrar" aria-label="<%- lang('inicio.actCerrar') %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <img id="noticiaImagenCompleta" class="noticiaImagenCompleta" alt="" hidden>
+            <div class="noticiaMeta">
+                <span id="noticiaEtiquetaCompleta" class="noticiaEtiqueta"></span>
+                <span id="noticiaFechaCompleta" class="textoSuave"></span>
+            </div>
+            <h2 id="noticiaTituloCompleto" class="tituloPixel"></h2>
+            <div id="noticiaContenido" class="noticiaContenido"></div>
+            <div class="modalAcciones">
+                <a id="noticiaVerMas" class="botonPrincipal" href="#" hidden><%- lang('inicio.noticiaVerMas') %></a>
+            </div>
+        </article>
+    </div>
+
     <!-- Tooltip compartido de gemas y cabezas (reino.js). -->
     <div id="reinoTooltip"></div>
     <script src="./assets/js/scripts/landing.js"></script>
     <script src="./assets/js/scripts/reino.js"></script>
     <script src="./assets/js/scripts/inicio.js"></script>
+    <script src="./assets/js/scripts/ayuda.js"></script>
+    <script src="./assets/js/scripts/modrinthui.js"></script>
 </div>

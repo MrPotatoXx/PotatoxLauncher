@@ -5,6 +5,8 @@
  * modules, excluding dependencies.
  */
 // Requirements
+// Lo primero: guardar la consola del launcher en logs/launcher.log (Ajustes → Ver logs del launcher).
+require('./assets/js/registro')
 const $                              = require('jquery')
 const {ipcRenderer, shell, webFrame} = require('electron')
 const remote                         = require('@electron/remote')

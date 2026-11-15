@@ -95,6 +95,8 @@ function setLaunchEnabled(val){
  * (ejecutable, RAM) se guarda con este id.
  */
 let idLanzamiento = null
+/** Para "Reintentar" cuando el juego se cae. */
+let ultimoLanzamiento = null
 /** Qué hacer cuando ya hay un Java válido (lo usa asyncSystemScan). */
 let alTenerJava = () => dlAsync()
 
@@ -109,6 +111,7 @@ async function lanzarServidor(){
     loggerLanding.info('Launching game..')
     try {
         idLanzamiento = ConfigManager.getSelectedServer()
+        ultimoLanzamiento = () => lanzarServidor()
         alTenerJava = () => dlAsync()
         const server = (await DistroAPI.getDistribution()).getServerById(idLanzamiento)
         guardarUltimaSeleccion('servidor', idLanzamiento)
@@ -157,6 +160,7 @@ async function lanzarInstancia(id){
     }
     loggerLanding.info(`Launching local instance ${id}..`)
     idLanzamiento = id
+    ultimoLanzamiento = () => lanzarInstancia(id)
     guardarUltimaSeleccion('instancia', id)
 
     setLaunchDetails(Lang.queryJS('inicio.lanzar.preparando'))
@@ -523,8 +527,6 @@ async function downloadJava(effectiveJavaOptions) {
 
 // Keep reference to Minecraft Process
 let proc
-// Is DiscordRPC enabled
-let hasRPC = false
 // Joined server regex
 // Change this if your server uses something different.
 const GAME_JOINED_REGEX = /\[.+\]: Sound engine started/
@@ -848,8 +850,7 @@ async function lanzarProceso(serv, versionData, modLoaderData, distro){
 
         const onLoadComplete = () => {
             toggleLaunchArea(false)
-            if(hasRPC){
-                DiscordWrapper.updateDetails(Lang.queryJS('landing.discord.loading'))
+            if(proc != null){
                 proc.stdout.on('data', gameStateChange)
             }
             proc.stdout.removeListener('data', tempListener)
@@ -900,17 +901,35 @@ async function lanzarProceso(serv, versionData, modLoaderData, distro){
 
             setLaunchDetails(Lang.queryJS('landing.dlAsync.doneEnjoyServer'))
 
-            // Init Discord Hook
-            if(distro != null && distro.rawDistribution.discord != null && serv.rawServer.discord != null){
-                DiscordWrapper.initRPC(distro.rawDistribution.discord, serv.rawServer.discord)
-                hasRPC = true
-                proc.on('close', (code, signal) => {
-                    loggerLaunchSuite.info('Shutting down Discord Rich Presence..')
-                    DiscordWrapper.shutdownRPC()
-                    hasRPC = false
-                    proc = null
-                })
+            // Últimas líneas del juego, para explicar qué pasó si se cae.
+            const salida = []
+            const guardarSalida = data => {
+                salida.push(...String(data).split(/\r?\n/))
+                if(salida.length > 4000){
+                    salida.splice(0, salida.length - 4000)
+                }
             }
+            proc.stdout.on('data', guardarSalida)
+            proc.stderr.on('data', guardarSalida)
+            const inicioJuego = Date.now()
+            const carpetaJuego = path.join(ConfigManager.getInstanceDirectory(), serv.rawServer.id)
+
+            // Discord: "Jugando <nombre>" (si está activado en Ajustes).
+            if(typeof discordJugando === 'function'){
+                discordJugando(serv, distro)
+            }
+
+            proc.on('close', code => {
+                proc = null
+                if(typeof discordEnLauncher === 'function'){
+                    discordEnLauncher()
+                }
+                // 0: el jugador cerró el juego. Otro código: se cayó.
+                if(code != null && code !== 0 && typeof mostrarAyudaCrash === 'function'){
+                    loggerLaunchSuite.warn(`Minecraft se cerró con código ${code}.`)
+                    mostrarAyudaCrash({ carpetaJuego, salida: salida.join('\n'), desde: inicioJuego, codigo: code, servidor: serv })
+                }
+            })
 
         } catch(err) {
 

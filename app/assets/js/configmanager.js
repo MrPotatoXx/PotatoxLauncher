@@ -88,7 +88,8 @@ const DEFAULT_CONFIG = {
             allowPrerelease: false,
             dataDirectory: dataPath,
             idioma: 'es_ES',
-            ramPorDefecto: null // en MB; null = según la memoria del PC
+            ramPorDefecto: null, // en MB; null = según la memoria del PC
+            discord: true // Discord Rich Presence
         }
     },
     newsCache: {
@@ -327,6 +328,17 @@ exports.setRamPorDefecto = function(mb){
  */
 exports.getRamPorDefectoTexto = function(){
     return resolveSelectedRAM(exports.getRamPorDefecto() != null ? { recommended: exports.getRamPorDefecto() } : null)
+}
+
+/**
+ * Si se muestra el estado en Discord (Rich Presence).
+ */
+exports.getDiscordActivo = function(){
+    return config.settings.launcher.discord !== false
+}
+
+exports.setDiscordActivo = function(activo){
+    config.settings.launcher.discord = activo
 }
 
 exports.getSelectedServer = function(def = false){

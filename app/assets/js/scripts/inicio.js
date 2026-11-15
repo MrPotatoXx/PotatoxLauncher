@@ -14,6 +14,8 @@ const fsInicio                    = require('fs-extra')
 const pathInicio                  = require('path')
 const { pathToFileURL }           = require('url')
 const Servidor                    = require('./assets/js/servidor')
+const Markdown                    = require('./assets/js/markdown')
+const Modrinth                    = require('./assets/js/modrinth')
 
 const IMG           = 'assets/images/potato'
 const loggerInicio  = LoggerUtil.getLogger('Inicio')
@@ -94,7 +96,7 @@ function nombreLoader(id){
 }
 
 function chipLoader(loader, version){
-    const c = el('span', 'chip chipLoader', `${nombreLoader(loader)} ${version}`)
+    const c = el('span', 'chip chipLoader', `${nombreLoader(loader)} ${version ?? ''}`.trim())
     c.setAttribute('loader', loader)
     return c
 }
@@ -128,6 +130,9 @@ for(const barra of document.querySelectorAll('.pestanas')){
             }
             if(barra.dataset.grupo === 'servidor' && b.dataset.pestana === 'mods'){
                 modsExtraServidor.cargar()
+            }
+            if(barra.dataset.grupo === 'crear'){
+                document.getElementById('crearConfirmar').hidden = b.dataset.pestana !== 'nueva'
             }
         })
     }
@@ -283,7 +288,7 @@ function irA(seccion){
         }
     }
     document.getElementById('contenido').scrollTop = 0
-    const tierras = seccion === 'servidor' && tieneTierras(ConfigManager.getSelectedServer())
+    const tierras = seccion === 'servidor' && tieneTierras(idVista())
     document.body.toggleAttribute('vistaTierras', tierras)
     if(typeof window.ambienteActivo === 'function'){
         window.ambienteActivo(tierras)
@@ -379,10 +384,9 @@ function fechaCorta(iso){
 }
 
 function tarjetaNoticia(n){
-    const tarjeta = el(n.link ? 'a' : 'article', 'tarjetaNoticia')
-    if(n.link){
-        tarjeta.href = n.link
-    }
+    // Toda la tarjeta se abre: la noticia completa va en un modal.
+    const tarjeta = el('button', 'tarjetaNoticia')
+    tarjeta.title = tInicio('noticiaLeer')
     const img = el('img', 'noticiaImagen')
     img.alt = ''
     img.src = n.imagen ? Servidor.imagen(n.imagen) : `${IMG}/noticia-default.jpg`
@@ -397,9 +401,60 @@ function tarjetaNoticia(n){
     textos.append(el('span', 'noticiaTitulo', n.titulo ?? ''))
     const meta = [n.fecha ? fechaCorta(n.fecha) : null, n.resumen].filter(Boolean).join(' · ')
     textos.append(el('span', 'noticiaResumen', meta))
+    textos.append(el('span', 'noticiaLeer', tInicio('noticiaLeer')))
     tarjeta.append(img, textos)
+    tarjeta.addEventListener('click', () => abrirNoticia(n))
     return tarjeta
 }
+
+const modalNoticia = document.getElementById('modalNoticia')
+
+/**
+ * La noticia completa: título, fecha, etiqueta, imagen y el "contenido" en Markdown
+ * (o el resumen si no trae contenido). Con "link", un botón "Ver más".
+ */
+function abrirNoticia(n){
+    const img = document.getElementById('noticiaImagenCompleta')
+    img.hidden = !n.imagen
+    if(n.imagen){
+        img.onerror = () => {
+            img.hidden = true
+        }
+        img.src = Servidor.imagen(n.imagen)
+    }
+    const etiqueta = document.getElementById('noticiaEtiquetaCompleta')
+    etiqueta.textContent = n.etiqueta ?? ''
+    etiqueta.hidden = !n.etiqueta
+    document.getElementById('noticiaFechaCompleta').textContent = n.fecha ? fechaCorta(n.fecha) : ''
+    document.getElementById('noticiaTituloCompleto').textContent = n.titulo ?? ''
+    const contenido = document.getElementById('noticiaContenido')
+    contenido.replaceChildren(Markdown.renderizar(n.contenido || n.resumen || ''))
+    contenido.scrollTop = 0
+    const verMas = document.getElementById('noticiaVerMas')
+    const link = typeof n.link === 'string' && /^https?:\/\//i.test(n.link) ? n.link : null
+    verMas.hidden = link == null
+    if(link){
+        verMas.href = link
+    }
+    modalNoticia.hidden = false
+    modalNoticia.querySelector('[data-accion="cerrar"]').focus()
+}
+
+function cerrarNoticia(){
+    modalNoticia.hidden = true
+}
+
+modalNoticia.querySelector('[data-accion="cerrar"]').addEventListener('click', cerrarNoticia)
+modalNoticia.addEventListener('mousedown', e => {
+    if(e.target === modalNoticia){
+        cerrarNoticia()
+    }
+})
+modalNoticia.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){
+        cerrarNoticia()
+    }
+})
 
 async function cargarNoticias(){
     const bloque = document.getElementById('bloqueNoticias')
@@ -448,8 +503,44 @@ function tarjetaServidor(serv){
     return t
 }
 
+/**
+ * Servidores "próximamente" que vienen solo en servidores-extra.json (no en la
+ * distribution): se muestran con su banner y su info, sin Jugar ni descargas.
+ */
+function servidoresSoloVista(){
+    const reales = new Set((distroInicio?.servers ?? []).map(s => s.rawServer.id))
+    return Object.entries(extrasServidores)
+        .filter(([id, e]) => e?.estado === 'proximamente' && !reales.has(id))
+        .map(([id, e]) => ({
+            soloVista: true,
+            rawServer: {
+                id,
+                name: typeof e.nombre === 'string' && e.nombre ? e.nombre : id,
+                icon: e.icono ?? null,
+                minecraftVersion: e.version ?? '',
+                description: e.descripcion ?? '',
+                address: ''
+            },
+            modules: []
+        }))
+}
+
+function servidoresMostrados(){
+    return [...(distroInicio?.servers ?? []), ...servidoresSoloVista()]
+}
+
+function servidorPorId(id){
+    return distroInicio?.getServerById(id) ?? servidoresSoloVista().find(s => s.rawServer.id === id) ?? null
+}
+
+/** El servidor que se está mirando (puede ser uno "próximamente" sin distribution). */
+let servidorVista = null
+const idVista = () => servidorVista ?? ConfigManager.getSelectedServer()
+
 function pintarServidores(){
-    const servidores = distroInicio?.servers ?? []
+    const servidores = servidoresMostrados()
+    // En Inicio, sin servidores (por ejemplo, una cuenta sin acceso a ninguno) no se muestra el bloque.
+    document.getElementById('inicioServidores').closest('.bloque').hidden = servidores.length === 0
     for(const contenedor of [document.getElementById('inicioServidores'), document.getElementById('listaServidores')]){
         contenedor.replaceChildren()
         if(servidores.length === 0){
@@ -476,7 +567,11 @@ async function pingTodos(){
 /* ---------- Vista de servidor y sus paneles ---------- */
 
 function abrirServidor(id){
-    seleccionarServidor(id)
+    servidorVista = id
+    // Solo los servidores de verdad pasan a ser el elegido para jugar.
+    if(distroInicio?.getServerById(id) != null){
+        seleccionarServidor(id)
+    }
     elegirPestana('servidor', 'resumen')
     pintarVistaServidor()
     irA('servidor')
@@ -558,8 +653,8 @@ const PANELES = {
                 .then(d => pintar(Array.isArray(d.noticias) ? d.noticias : []))
                 .catch(err => loggerInicio.warn('Panel de noticias:', err.message))
         } else {
-            // Las generales (sin "servidor") y las de este servidor.
-            pintar(noticiasCache.filter(n => !n.servidor || n.servidor === serv.rawServer.id))
+            // Solo las de este servidor; las del launcher (sin "servidor") van en Inicio.
+            pintar(noticiasCache.filter(n => n.servidor === serv.rawServer.id))
         }
         return panel
     },
@@ -595,8 +690,8 @@ const PANELES = {
 }
 
 function pintarPaneles(){
-    const id = ConfigManager.getSelectedServer()
-    const serv = distroInicio?.getServerById(id)
+    const id = idVista()
+    const serv = servidorPorId(id)
     if(serv == null){
         return
     }
@@ -604,7 +699,9 @@ function pintarPaneles(){
     // Las Crónicas vuelven a su lugar antes de rehacer los paneles.
     cont.after(document.getElementById('cronicasPanel'))
     cont.replaceChildren()
-    for(const p of panelesDe(id)){
+    // Un servidor "próximamente" solo muestra sus textos, links y noticias.
+    const tipos = serv.soloVista ? ['texto', 'link', 'noticias'] : null
+    for(const p of panelesDe(id).filter(x => tipos == null || tipos.includes(x.tipo))){
         const fn = PANELES[p.tipo]
         if(fn == null){
             loggerInicio.debug('Tipo de panel desconocido:', p.tipo)
@@ -643,12 +740,17 @@ function pintarModsServidor(serv){
 }
 
 function pintarVistaServidor(){
-    const id = ConfigManager.getSelectedServer()
-    const serv = distroInicio?.getServerById(id)
+    const id = idVista()
+    const serv = servidorPorId(id)
     if(serv == null){
         return
     }
     const seccion = document.getElementById('seccionServidor')
+    // "Próximamente" sin distribution: sin Jugar, sin pestañas de Mods ni Carpetas.
+    seccion.toggleAttribute('soloVista', serv.soloVista === true)
+    if(serv.soloVista){
+        elegirPestana('servidor', 'resumen')
+    }
     const tierras = tieneTierras(id)
     seccion.toggleAttribute('tierras', tierras)
     seccion.style.setProperty('--acento', extrasServidores[id]?.colorAcento ?? '#6CC04A')
@@ -665,6 +767,10 @@ function pintarVistaServidor(){
     document.getElementById('servidorChips').replaceChildren(chipLoader(loaderDeServidor(serv), serv.rawServer.minecraftVersion), chipEstado(id))
     document.getElementById('servidorDescripcion').textContent = serv.rawServer.description ?? ''
     pintarPaneles()
+    if(serv.soloVista){
+        document.body.toggleAttribute('vistaTierras', false)
+        return
+    }
     pintarModsServidor(serv)
     // Sin loader (Vanilla) no hay dónde cargar mods extra.
     const conLoader = loaderDeServidor(serv) !== 'vanilla'
@@ -1067,8 +1173,48 @@ function listaModsEditable(o){
             o.lista.append(vacio(o.textoVacio))
             return
         }
+        const filas = new Map()
         for(const m of mods){
-            o.lista.append(filaModEditable(m))
+            const fila = filaModEditable(m)
+            filas.set(m.archivo, fila)
+            o.lista.append(fila)
+        }
+        if(o.contexto){
+            anotarActualizaciones(n, filas)
+        }
+    }
+
+    /**
+     * Marca los mods que vienen de Modrinth y tienen una versión nueva.
+     */
+    async function anotarActualizaciones(n, filas){
+        let instalados
+        try {
+            instalados = await Modrinth.instalados(o.carpeta(), { tipo: 'mod', ...o.contexto() })
+        } catch(err) {
+            loggerInicio.debug('Sin datos de Modrinth para los mods instalados.', err.message)
+            return
+        }
+        if(n !== carga){
+            return
+        }
+        for(const inst of instalados.values()){
+            const fila = filas.get(inst.archivo)
+            if(fila == null || inst.nueva == null){
+                continue
+            }
+            const boton = el('button', 'botonActualizarMod', tInicio('modActualizar', { version: inst.nueva.version_number }))
+            boton.addEventListener('click', async () => {
+                boton.disabled = true
+                try {
+                    await Modrinth.actualizar(inst, aLaPapelera)
+                } catch(err) {
+                    loggerInicio.error('No se pudo actualizar el mod.', err)
+                    mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
+                }
+                cargar()
+            })
+            fila.querySelector('.modTextos').after(boton)
         }
     }
 
@@ -1167,6 +1313,10 @@ const modsInstancia = listaModsEditable({
     botonCarpeta: seccionInstancia.querySelector('[data-accion="modsCarpeta"]'),
     botonAgregar: seccionInstancia.querySelector('[data-accion="modsAgregar"]'),
     carpeta: () => pathInicio.join(Instancias.carpeta(instanciaAbierta), 'mods'),
+    contexto: () => {
+        const inst = Instancias.obtener(instanciaAbierta)
+        return { mc: inst.mc, loader: inst.loader }
+    },
     textoVacio: tInicio('modsVacio')
 })
 const cargarModsInstancia = () => modsInstancia.cargar()
@@ -1200,10 +1350,14 @@ const modsExtraServidor = listaModsEditable({
     soltar: document.getElementById('extraSoltar'),
     botonCarpeta: seccionServidorMods.querySelector('[data-accion="extraCarpeta"]'),
     botonAgregar: seccionServidorMods.querySelector('[data-accion="extraAgregar"]'),
-    carpeta: () => pathInicio.join(ConfigManager.getInstanceDirectory(), ConfigManager.getSelectedServer(), 'mods'),
+    carpeta: () => pathInicio.join(ConfigManager.getInstanceDirectory(), idVista(), 'mods'),
     excluir: () => {
-        const serv = distroInicio?.getServerById(ConfigManager.getSelectedServer())
+        const serv = distroInicio?.getServerById(idVista())
         return serv ? archivosDeLaDistribution(serv) : new Set()
+    },
+    contexto: () => {
+        const serv = servidorPorId(idVista())
+        return { mc: serv?.rawServer.minecraftVersion, loader: serv ? loaderDeServidor(serv) : 'vanilla' }
     },
     textoVacio: tInicio('modsExtraVacio')
 })
@@ -1305,6 +1459,9 @@ const creador = selectorVersiones({
 
 function abrirCrear(){
     formCrear.reset()
+    elegirPestana('crear', 'nueva')
+    document.getElementById('crearConfirmar').hidden = false
+    crearError.hidden = true
     creador.reiniciar('vanilla')
     modalCrear.hidden = false
     document.getElementById('crearNombre').focus()
@@ -1464,6 +1621,9 @@ function iniciarInicio(data){
     })
     cargarNoticias()
     pingTodos()
+    if(typeof discordIniciar === 'function'){
+        discordIniciar()
+    }
 }
 
 /**

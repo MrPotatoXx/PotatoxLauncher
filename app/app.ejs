@@ -12,6 +12,44 @@
     <!-- Anuncio de la Luna de Sangre (reino.js); solo se ve en la vista de Tierras Malditas. -->
     <div id="lunaAnuncio"><%- lang('app.lunaAnuncio') %></div>
     <%- include('frame') %>
+    <!-- El juego se cerró con un error -->
+    <div id="modalCrash" class="modalFondo" hidden>
+        <div class="modal modalCrash" role="alertdialog" aria-modal="true" aria-labelledby="crashTitulo">
+            <img class="overlayMascota" src="assets/images/potato/mascota-error.png" alt="">
+            <h2 id="crashTitulo" class="tituloPixel"><%- lang('inicio.crashTitulo') %></h2>
+            <p id="crashCausa" class="crashCausa"></p>
+            <p id="crashSugerencia" class="avisoVersion" hidden></p>
+            <div class="filaBotones crashBotones">
+                <button class="botonPrincipal" data-accion="reintentar"><%- lang('inicio.crashReintentar') %></button>
+                <button class="botonSecundario" data-accion="arreglar" hidden></button>
+                <button class="botonSecundario" data-accion="verLog"><%- lang('inicio.crashVerLog') %></button>
+                <button class="botonSecundario" data-accion="copiarLog"><%- lang('inicio.crashCopiarLog') %></button>
+                <button class="botonSecundario" data-accion="carpetaLogs"><%- lang('inicio.crashCarpetaLogs') %></button>
+            </div>
+            <div class="modalAcciones">
+                <span id="crashCopiado" class="textoSuave" hidden><%- lang('inicio.crashCopiado') %></span>
+                <button class="botonSecundario" data-accion="cerrar"><%- lang('inicio.actCerrar') %></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visor de logs -->
+    <div id="modalLog" class="modalFondo" hidden>
+        <div class="modal modalLog" role="dialog" aria-modal="true" aria-labelledby="logTitulo">
+            <div class="logCabeza">
+                <h2 id="logTitulo" class="tituloPixel"></h2>
+                <input type="search" id="logBuscar" class="campoBusqueda" placeholder="<%- lang('inicio.logBuscar') %>">
+                <span id="logCoincidencias" class="textoSuave"></span>
+                <button class="botonIcono cerrarModal" data-accion="cerrar" aria-label="<%- lang('inicio.actCerrar') %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>
+            <div id="logContenido" class="logContenido" tabindex="0"></div>
+            <div class="modalAcciones">
+                <button class="botonSecundario" data-accion="copiar"><%- lang('inicio.crashCopiarLog') %></button>
+                <button class="botonSecundario" data-accion="carpeta"><%- lang('inicio.crashCarpetaLogs') %></button>
+            </div>
+        </div>
+    </div>
+
     <div id="main">
         <%- include('welcome') %>
         <%- include('login') %>
