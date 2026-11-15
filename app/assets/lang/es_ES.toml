@@ -578,6 +578,9 @@ ajusteIdiomaDesc = "El idioma del launcher. Se aplica al reiniciar."
 ajusteRamTitulo = "RAM por defecto"
 ajusteRamDesc = "La memoria con la que arrancan las instancias nuevas. Cada instancia la puede cambiar en su pestaña Rendimiento."
 ajusteRamAuto = "Automática (según tu PC)"
+modsServidorTitulo = "Mods del servidor"
+modsExtraTitulo = "Tus mods extra"
+modsExtraNota = "Solo mods de cliente (minimapas, shaders, rendimiento). Un mod que el servidor no tiene puede impedir la conexión."
 [js.inicio]
 saludo = "Hola, {nombre}"
 saludoSinNombre = "Hola"
@@ -628,6 +631,11 @@ modOpcional = "opcional"
 idiomaTitulo = "Idioma cambiado"
 idiomaTexto = "El idioma nuevo se aplica al reiniciar el launcher."
 idiomaReiniciar = "Reiniciar ahora"
+modsExtraVacio = "No agregaste mods extra. Arrastra tus .jar acá o usa \"Agregar mods…\"."
+revisando = "Revisando…"
+crear = "Crear"
+errorInstalador = "No existe un instalador de {loader} {version} para Minecraft {mc}. Elige otra versión."
+errorInstaladorConexion = "No se pudo comprobar el instalador de {loader}. Revisa tu conexión e inténtalo de nuevo."
 [js.inicio.estado]
 sinConexion = "Apagado · sin conexión"
 cargando = "Consultando…"
@@ -646,7 +654,8 @@ grey = "sin datos"
 
 [js.inicio.lanzar]
 preparando = "Preparando la instancia…"
-
+instalandoLoader = "Instalando {loader} {version} (solo la primera vez, puede tardar unos minutos)…"
+loaderIncompleto = "El instalador de {loader} terminó, pero faltan archivos. Inténtalo de nuevo; si sigue fallando, prueba otra versión."
 [js.inicio.carpeta]
 mods = "Mods"
 saves = "Mundos"
@@ -662,8 +671,8 @@ jugadores = "Jugadores"
 version = "Versión"
 direccion = "Dirección"
 conectados = "Conectados"
-listaOculta = "Hay gente jugando, pero el servidor no muestra quiénes."
-nadie = "No hay nadie conectado ahora."
+listaOculta = "{n} conectados (el servidor no muestra quiénes)"
+nadie = "Nadie conectado ahora"
 abrir = "Abrir"
 
 [js.inicio.act]
@@ -677,3 +686,9 @@ bajandoPorcentaje = "Bajando actualización {porcentaje}%"
 reiniciar = "Reiniciar y actualizar"
 opcionalTitulo = "Versión {version}: se instala sola al cerrar el launcher."
 toast = "La versión {version} ya está lista. Se instala sola al cerrar el launcher."
+
+[js.inicio.etiquetaVersion]
+
+recomendada = "recomendada"
+ultima = "última"
+beta = "beta"

@@ -202,8 +202,24 @@
                     </div>
                 </div>
                 <div class="pestana" data-grupo="servidor" data-pestana="mods" hidden>
-                    <p class="textoSuave"><%- lang('inicio.modsServidorNota') %></p>
-                    <div id="servidorMods" class="listaMods"></div>
+                    <section class="bloqueMods">
+                        <h3 class="tituloPixel"><%- lang('inicio.modsServidorTitulo') %></h3>
+                        <p class="textoSuave"><%- lang('inicio.modsServidorNota') %></p>
+                        <div id="servidorMods" class="listaMods"></div>
+                    </section>
+                    <section class="bloqueMods" id="bloqueModsExtra">
+                        <h3 class="tituloPixel"><%- lang('inicio.modsExtraTitulo') %></h3>
+                        <p class="avisoVersion"><%- lang('inicio.modsExtraNota') %></p>
+                        <div class="barraMods">
+                            <button class="botonSecundario" data-accion="extraCarpeta"><%- lang('inicio.modsAbrirCarpeta') %></button>
+                            <button class="botonSecundario" data-accion="extraAgregar"><%- lang('inicio.modsAgregar') %></button>
+                            <span class="textoSuave" id="extraResumen"></span>
+                        </div>
+                        <div id="extraSoltar" class="zonaSoltar">
+                            <span><%- lang('inicio.modsSoltar') %></span>
+                        </div>
+                        <div id="servidorModsExtra" class="listaMods"></div>
+                    </section>
                 </div>
                 <div class="pestana" data-grupo="servidor" data-pestana="carpetas" hidden>
                     <p class="textoSuave"><%- lang('inicio.carpetasServidorNota') %></p>

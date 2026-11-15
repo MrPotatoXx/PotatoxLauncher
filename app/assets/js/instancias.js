@@ -1,5 +1,5 @@
 /**
- * Instancias propias del jugador: Vanilla y Fabric por ahora, Forge y NeoForge después.
+ * Instancias propias del jugador: Vanilla, Fabric, Forge y NeoForge.
  *
  * Cada instancia vive en <instances>/local-<nombre>, aparte de los servidores
  * (que usan su id del distribution.json) y nunca dentro de .minecraft.
@@ -11,16 +11,21 @@ const fs            = require('fs-extra')
 const path          = require('path')
 const got           = require('got')
 const { fork }      = require('child_process')
-const { HeliosServer } = require('helios-core/common')
+const { HeliosServer, mcVersionAtLeast } = require('helios-core/common')
 const { LoggerUtil } = require('helios-core')
 
 const ConfigManager = require('./configmanager')
+const Lang          = require('./langloader')
+const InstaladorForge = require('./instaladorforge')
 
 const logger = LoggerUtil.getLogger('Instancias')
 
 const PREFIJO = 'local-'
 const MANIFEST_MOJANG = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
 const META_FABRIC = 'https://meta.fabricmc.net/v2'
+const URL_FORGE_META = 'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json'
+const URL_FORGE_PROMOS = 'https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json'
+const URL_NEOFORGE = 'https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge'
 const TIMEOUT = { request: 15000 }
 
 const archivo = () => path.join(ConfigManager.getLauncherDirectory(), 'instancias.json')
@@ -31,6 +36,7 @@ let datos = null
 
 let cacheMojang = null
 let cacheFabricJuegos = null
+const cacheFabricLoaders = new Map()
 
 async function manifestMojang(){
     if(cacheMojang == null){
@@ -42,8 +48,7 @@ async function manifestMojang(){
 /**
  * Cada loader dice si está disponible, qué versiones de Minecraft soporta,
  * qué versiones propias tiene y cómo se arma para lanzar. Forge y NeoForge
- * quedan declarados pero deshabilitados: necesitan correr su instalador por
- * versión (ver ensureForgeInstalled en landing.js) y llegan en la fase 2.
+ * corren su instalador oficial la primera vez (instaladorforge.js).
  */
 const LOADERS = {
     vanilla: {
@@ -78,12 +83,16 @@ const LOADERS = {
             const soportadas = new Set(cacheFabricJuegos.filter(v => snapshots || v.stable).map(v => v.version))
             const m = await manifestMojang()
             return m.versions
-                .filter(v => soportadas.has(v.id))
+                .filter(v => soportadas.has(v.id) && (snapshots || v.type === 'release'))
                 .map(v => ({ id: v.id, estable: v.type === 'release' }))
         },
         async versionesLoader(mc){
-            const lista = await got.get(`${META_FABRIC}/versions/loader/${encodeURIComponent(mc)}`, { responseType: 'json', timeout: TIMEOUT }).json()
-            return lista.map(e => ({ id: e.loader.version, estable: e.loader.stable }))
+            // Los loaders dependen de la versión de Minecraft; se guardan por versión.
+            if(!cacheFabricLoaders.has(mc)){
+                const lista = await got.get(`${META_FABRIC}/versions/loader/${encodeURIComponent(mc)}`, { responseType: 'json', timeout: TIMEOUT }).json()
+                cacheFabricLoaders.set(mc, lista.map(e => ({ id: e.loader.version, estable: e.loader.stable })))
+            }
+            return [...cacheFabricLoaders.get(mc)]
         },
         async perfil(inst){
             const id = `fabric-loader-${inst.loaderVersion}-${inst.mc}`
@@ -108,14 +117,206 @@ const LOADERS = {
     forge: {
         id: 'forge',
         nombre: 'Forge',
-        disponible: false,
-        conVersion: true
+        disponible: true,
+        conVersion: true,
+        // El instalador corre con el Java de esa versión de Minecraft: el perfil se arma
+        // después de resolver Java (lanzarInstancia en landing.js).
+        necesitaJava: true,
+        async versionesMinecraft(){
+            const meta = await forgeMeta()
+            const soportadas = new Set(Object.keys(meta))
+            const m = await manifestMojang()
+            // Forge no publica snapshots; antes de 1.13 usaba otro sistema de arranque.
+            return m.versions
+                .filter(v => soportadas.has(v.id) && v.type === 'release' && mcVersionAtLeast('1.13', v.id))
+                .map(v => ({ id: v.id, estable: true }))
+        },
+        async versionesLoader(mc){
+            const [meta, promos] = await Promise.all([forgeMeta(), forgePromos()])
+            const lista = (meta[mc] ?? [])
+                .filter(v => v.startsWith(`${mc}-`))
+                .map(v => v.substring(mc.length + 1))
+                .reverse()
+            const recomendada = promos[`${mc}-recommended`]
+            const ultima = promos[`${mc}-latest`]
+            const porDefecto = recomendada ?? ultima ?? lista[0]
+            return lista.map(v => ({
+                id: v,
+                estable: true,
+                etiqueta: v === recomendada ? 'recomendada' : (v === ultima ? 'ultima' : null),
+                predeterminada: v === porDefecto
+            }))
+        },
+        urlInstalador({ mc, loaderVersion }){
+            const id = `${mc}-${loaderVersion}`
+            return `https://maven.minecraftforge.net/net/minecraftforge/forge/${id}/forge-${id}-installer.jar`
+        },
+        async perfil(inst, ctx){
+            return perfilConInstalador(this, inst, ctx)
+        }
     },
     neoforge: {
         id: 'neoforge',
         nombre: 'NeoForge',
-        disponible: false,
-        conVersion: true
+        disponible: true,
+        conVersion: true,
+        necesitaJava: true,
+        async versionesMinecraft(snapshots = false){
+            const mcs = new Set((await neoforgeLista()).map(mcDeNeoForge).filter(Boolean))
+            const m = await manifestMojang()
+            return m.versions
+                .filter(v => mcs.has(v.id) && (snapshots || v.type === 'release'))
+                .map(v => ({ id: v.id, estable: v.type === 'release' }))
+        },
+        async versionesLoader(mc){
+            const lista = (await neoforgeLista()).filter(v => mcDeNeoForge(v) === mc).reverse()
+            // Por defecto, la más nueva que no sea beta.
+            const porDefecto = lista.find(v => !v.includes('-')) ?? lista[0]
+            return lista.map(v => ({
+                id: v,
+                estable: !v.includes('-'),
+                etiqueta: v.includes('-') ? 'beta' : null,
+                predeterminada: v === porDefecto
+            }))
+        },
+        urlInstalador({ loaderVersion }){
+            return `https://maven.neoforged.net/releases/net/neoforged/neoforge/${loaderVersion}/neoforge-${loaderVersion}-installer.jar`
+        },
+        async perfil(inst, ctx){
+            return perfilConInstalador(this, inst, ctx)
+        }
+    }
+}
+
+/* ---------- Forge y NeoForge ---------- */
+
+let cacheForgeMeta = null
+let cacheForgePromos = null
+let cacheNeoforge = null
+
+async function forgeMeta(){
+    if(cacheForgeMeta == null){
+        cacheForgeMeta = await got.get(URL_FORGE_META, { responseType: 'json', timeout: TIMEOUT }).json()
+    }
+    return cacheForgeMeta
+}
+
+async function forgePromos(){
+    if(cacheForgePromos == null){
+        try {
+            cacheForgePromos = (await got.get(URL_FORGE_PROMOS, { responseType: 'json', timeout: TIMEOUT }).json()).promos ?? {}
+        } catch(err) {
+            logger.warn('No se pudieron leer las versiones recomendadas de Forge.', err.message)
+            return {}
+        }
+    }
+    return cacheForgePromos
+}
+
+async function neoforgeLista(){
+    if(cacheNeoforge == null){
+        cacheNeoforge = (await got.get(URL_NEOFORGE, { responseType: 'json', timeout: TIMEOUT }).json()).versions ?? []
+    }
+    return cacheNeoforge
+}
+
+/**
+ * La versión de Minecraft de una versión de NeoForge: 21.1.x es 1.21.1, 21.0.x es 1.21,
+ * y desde 26: 26.1.0.x es 26.1 y 26.1.1.x es 26.1.1. Las versiones raras (0.25w14...) quedan fuera.
+ */
+function mcDeNeoForge(version){
+    const p = version.split('-')[0].split('.').map(Number)
+    if(p.length < 3 || p.some(isNaN) || p[0] < 20){
+        return null
+    }
+    if(p[0] >= 26){
+        return p[2] ? `${p[0]}.${p[1]}.${p[2]}` : `${p[0]}.${p[1]}`
+    }
+    return p[1] ? `1.${p[0]}.${p[1]}` : `1.${p[0]}`
+}
+exports.mcDeNeoForge = mcDeNeoForge
+
+/**
+ * Perfil de una instancia Forge o NeoForge. La primera vez (o si falta algo) corre el
+ * instalador oficial con --installClient sobre common, con el Java de la instancia.
+ *
+ * @param {Object} loader El loader (forge o neoforge).
+ * @param {Object} inst La instancia.
+ * @param {{java: string, detalle?: Function}} ctx Java para el instalador y callback de estado.
+ */
+async function perfilConInstalador(loader, inst, ctx = {}){
+    const common = ConfigManager.getCommonDirectory()
+    const libDir = path.join(common, 'libraries')
+    const leer = async id => {
+        const ruta = path.join(common, 'versions', id, `${id}.json`)
+        if(!await fs.pathExists(ruta)){
+            return null
+        }
+        const version = await fs.readJson(ruta)
+        const existen = await Promise.all(InstaladorForge.rutasLibrerias(version).map(r => fs.pathExists(path.join(libDir, r))))
+        return existen.every(Boolean) ? version : null
+    }
+
+    let version = inst.loaderId && inst.loaderIdDe === inst.loaderVersion ? await leer(inst.loaderId) : null
+    if(version == null){
+        if(!ctx.java){
+            throw InstaladorForge.errorMostrable(Lang.queryJS('landing.forge.javaFailed'))
+        }
+        ctx.detalle?.(Lang.queryJS('inicio.lanzar.instalandoLoader', { loader: loader.nombre, version: inst.loaderVersion }))
+        const { ruta, carpeta } = await InstaladorForge.bajarInstalador(loader.urlInstalador(inst))
+        try {
+            const id = InstaladorForge.leerVersionDelInstalador(ruta).id
+            await InstaladorForge.correrInstalador({ instalador: ruta, carpeta, java: ctx.java })
+            version = await leer(id)
+            if(version == null){
+                throw InstaladorForge.errorMostrable(Lang.queryJS('inicio.lanzar.loaderIncompleto', { loader: loader.nombre }))
+            }
+            exports.actualizar(inst.id, { loaderId: id, loaderIdDe: inst.loaderVersion })
+        } finally {
+            await fs.remove(carpeta)
+        }
+    }
+    return { modManifest: version, modulos: modulosDeVersion(version) }
+}
+
+/**
+ * Las librerías del perfil de Forge/NeoForge como módulos Library, para que
+ * ProcessBuilder las ponga en el classpath (ya las bajó el instalador).
+ */
+function modulosDeVersion(version){
+    const rutas = InstaladorForge.rutasLibrerias(version)
+    return (version.libraries ?? []).map((lib, i) => ({
+        id: lib.name,
+        name: lib.name,
+        type: 'Library',
+        artifact: {
+            size: lib.downloads?.artifact?.size ?? 0,
+            MD5: null,
+            url: '',
+            path: rutas[i]
+        }
+    }))
+}
+
+/**
+ * Antes de crear una instancia Forge o NeoForge, revisa que exista el instalador de
+ * esa versión, para no dejar una instancia que no va a poder arrancar.
+ */
+exports.validarLoader = async function({ loader, mc, loaderVersion }){
+    const def = LOADERS[loader]
+    if(def?.urlInstalador == null){
+        return
+    }
+    let ok = false
+    try {
+        const res = await fetch(def.urlInstalador({ mc, loaderVersion }), { method: 'HEAD', signal: AbortSignal.timeout(10000) })
+        ok = res.ok
+    } catch(err) {
+        logger.warn('No se pudo revisar el instalador.', err.message)
+        throw InstaladorForge.errorMostrable(Lang.queryJS('inicio.errorInstaladorConexion', { loader: def.nombre }))
+    }
+    if(!ok){
+        throw InstaladorForge.errorMostrable(Lang.queryJS('inicio.errorInstalador', { loader: def.nombre, version: loaderVersion, mc }))
     }
 }
 
@@ -296,7 +497,9 @@ exports.quitar = function(id){
 
 function opcionesJava(major){
     return {
-        supported: major > 8 ? `>=${major}.x` : '8.x',
+        // La versión exacta que pide Minecraft, como el launcher oficial: Forge y
+        // NeoForge viejos no arrancan con un Java más nuevo (si falta, se baja sola).
+        supported: `${major}.x`,
         suggestedMajor: major,
         distribution: process.platform === 'darwin' ? 'CORRETTO' : 'TEMURIN'
     }

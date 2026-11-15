@@ -165,7 +165,9 @@ async function lanzarInstancia(id){
 
     try {
         const loader = Instancias.LOADERS[inst.loader]
-        const { modManifest, modulos } = await loader.perfil(inst)
+        // Forge y NeoForge corren su instalador con el Java de la instancia: su perfil
+        // se arma más abajo, cuando ya hay Java. Vanilla y Fabric, ahora.
+        let { modManifest, modulos } = loader.necesitaJava ? { modManifest: null, modulos: [] } : await loader.perfil(inst)
         let serv = Instancias.construirServidor(inst, modulos, 17)
 
         setLaunchDetails(Lang.queryJS('landing.dlAsync.validatingFileIntegrity'))
@@ -189,7 +191,20 @@ async function lanzarInstancia(id){
         ConfigManager.save()
 
         const versionData = await new MojangIndexProcessor(ConfigManager.getCommonDirectory(), inst.mc).getVersionJson()
-        alTenerJava = () => lanzarProceso(serv, versionData, modManifest, null)
+        alTenerJava = async () => {
+            if(loader.necesitaJava){
+                toggleLaunchArea(true)
+                setLaunchPercentage(0)
+                const perfil = await loader.perfil(Instancias.obtener(id), {
+                    java: ConfigManager.getJavaExecutable(id),
+                    detalle: texto => setLaunchDetails(texto)
+                })
+                modManifest = perfil.modManifest
+                modulos = perfil.modulos
+                serv = Instancias.construirServidor(inst, modulos, javaMajor)
+            }
+            await lanzarProceso(serv, versionData, modManifest, null)
+        }
 
         const jExe = ConfigManager.getJavaExecutable(id)
         const valido = jExe != null && await validateSelectedJvm(ensureJavaDirIsRoot(jExe), serv.effectiveJavaOptions.supported) != null
@@ -528,8 +543,6 @@ const MIN_LINGER = 5000
  */
 async function ensureForgeInstalled(serv, modLoaderData) {
     const fs = require('fs-extra')
-    const os = require('os')
-    const child_process = require('child_process')
     const loggerForge = LoggerUtil.getLogger('ForgeInstaller')
 
     const forgeModule = serv.modules.find(m => m.rawModule.type === Type.ForgeHosted)
@@ -586,61 +599,19 @@ async function ensureForgeInstalled(serv, modLoaderData) {
 
     setLaunchDetails(Lang.queryJS('landing.forge.preparing'))
     const start = Date.now()
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'potatox-forge-'))
     const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${forgeId}/forge-${forgeId}-installer.jar`
-    const installerPath = path.join(tmpDir, `forge-${forgeId}-installer.jar`)
 
+    // Mismo camino que las instancias propias con Forge o NeoForge (instaladorforge.js).
+    const InstaladorForge = require('./assets/js/instaladorforge')
+    const { ruta, carpeta } = await InstaladorForge.bajarInstalador(installerUrl)
     try {
-        try {
-            await downloadFile(installerUrl, installerPath)
-        } catch(err) {
-            loggerForge.error(`Failed to download ${installerUrl}`, err)
-            throw displayableError(Lang.queryJS('landing.forge.downloadFailed'))
-        }
-
-        // El instalador se niega a correr si no encuentra un perfil del launcher oficial.
-        const profilesPath = path.join(commonDir, 'launcher_profiles.json')
-        if(!await fs.pathExists(profilesPath)) {
-            await fs.writeJson(profilesPath, {})
-        }
-
-        // La salida completa (decenas de miles de lineas) va a un archivo; la consola solo muestra stderr
-        // y, si falla, las ultimas lineas.
-        const logPath = path.join(ConfigManager.getLauncherDirectory(), 'forge-installer.log')
-        const logStream = fs.createWriteStream(logPath)
-        let tail = []
-        const keepTail = (data) => {
-            tail = tail.concat(data.split(/\r?\n/).filter(l => l.length > 0)).slice(-40)
-        }
-
-        const javaExe = ConfigManager.getJavaExecutable(serv.rawServer.id)
-        loggerForge.info(`Running ${javaExe} -jar ${installerPath} --installClient ${commonDir}`)
-        loggerForge.info(`Installer output: ${logPath}`)
-        const exitCode = await new Promise((resolve, reject) => {
-            const child = child_process.spawn(javaExe, ['-jar', installerPath, '--installClient', commonDir], { cwd: tmpDir })
-            child.stdout.setEncoding('utf8')
-            child.stderr.setEncoding('utf8')
-            child.stdout.on('data', data => {
-                logStream.write(data)
-                keepTail(data)
-            })
-            child.stderr.on('data', data => {
-                logStream.write(data)
-                keepTail(data)
-                loggerForge.error(data.trim())
-            })
-            child.on('error', err => {
-                loggerForge.error(`Could not run ${javaExe}`, err)
-                reject(displayableError(Lang.queryJS('landing.forge.javaFailed')))
-            })
-            child.on('close', resolve)
-        }).finally(() => logStream.end())
-        if(exitCode !== 0) {
-            loggerForge.error(`Forge installer exited with code ${exitCode}. Last lines:\n${tail.join('\n')}`)
-            throw displayableError(Lang.queryJS('landing.forge.installerFailed', { code: exitCode }))
-        }
+        await InstaladorForge.correrInstalador({
+            instalador: ruta,
+            carpeta,
+            java: ConfigManager.getJavaExecutable(serv.rawServer.id)
+        })
     } finally {
-        await fs.remove(tmpDir)
+        await fs.remove(carpeta)
     }
 
     missing = await findMissing()

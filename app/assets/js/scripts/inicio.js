@@ -126,6 +126,9 @@ for(const barra of document.querySelectorAll('.pestanas')){
             if(barra.dataset.grupo === 'instancia' && b.dataset.pestana === 'mods'){
                 cargarModsInstancia()
             }
+            if(barra.dataset.grupo === 'servidor' && b.dataset.pestana === 'mods'){
+                modsExtraServidor.cargar()
+            }
         })
     }
 }
@@ -531,7 +534,12 @@ const PANELES = {
             }
             panel.append(caras)
         } else {
-            panel.append(el('p', 'textoSuave', ping?.online && ping.onlinePlayers > 0 ? tInicio('panel.listaOculta') : tInicio('panel.nadie')))
+            // El mismo aviso en todos los servidores: apagado, cerrado o sin gente.
+            const hayGente = ping?.online && Number(ping.onlinePlayers) > 0
+            const aviso = el('div', 'avisoJugadores')
+            aviso.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>'
+            aviso.append(el('span', null, hayGente ? tInicio('panel.listaOculta', { n: ping.onlinePlayers }) : tInicio('panel.nadie')))
+            panel.append(aviso)
         }
         return panel
     },
@@ -550,7 +558,8 @@ const PANELES = {
                 .then(d => pintar(Array.isArray(d.noticias) ? d.noticias : []))
                 .catch(err => loggerInicio.warn('Panel de noticias:', err.message))
         } else {
-            pintar(noticiasCache.filter(n => n.servidor === serv.rawServer.id))
+            // Las generales (sin "servidor") y las de este servidor.
+            pintar(noticiasCache.filter(n => !n.servidor || n.servidor === serv.rawServer.id))
         }
         return panel
     },
@@ -657,8 +666,16 @@ function pintarVistaServidor(){
     document.getElementById('servidorDescripcion').textContent = serv.rawServer.description ?? ''
     pintarPaneles()
     pintarModsServidor(serv)
+    // Sin loader (Vanilla) no hay dónde cargar mods extra.
+    const conLoader = loaderDeServidor(serv) !== 'vanilla'
+    document.getElementById('bloqueModsExtra').hidden = !conLoader
+    if(conLoader && !document.querySelector('.pestana[data-grupo="servidor"][data-pestana="mods"]').hidden){
+        modsExtraServidor.cargar()
+    }
     pintarCarpetas(document.getElementById('servidorCarpetas'), pathInicio.join(ConfigManager.getInstanceDirectory(), id),
-        ['saves', 'resourcepacks', 'shaderpacks', 'screenshots'])
+        conLoader
+            ? ['mods', 'config', 'saves', 'resourcepacks', 'shaderpacks', 'screenshots']
+            : ['config', 'saves', 'resourcepacks', 'shaderpacks', 'screenshots'])
     document.body.toggleAttribute('vistaTierras', seccionActual === 'servidor' && tierras)
     if(seccionActual === 'servidor' && typeof window.ambienteActivo === 'function'){
         window.ambienteActivo(tierras)
@@ -731,9 +748,16 @@ function pintarInstancias(){
 function selectorVersiones({ loaders, version, loaderVersion, campoLoaderVersion, snapshots, error }){
     let loader = 'vanilla'
     let pedido = 0
+    let pedidoLoader = 0
     let preferidas = {}
 
     function llenar(select, opciones, textoVacio, preferida){
+        // Si la lista es la misma no se toca: rehacerla cierra el desplegable si está abierto.
+        const firma = JSON.stringify([opciones.map(o => o.id), textoVacio, preferida ?? null])
+        if(select.dataset.firma === firma){
+            return
+        }
+        select.dataset.firma = firma
         select.replaceChildren()
         if(opciones.length === 0){
             const o = el('option', null, textoVacio)
@@ -748,7 +772,8 @@ function selectorVersiones({ loaders, version, loaderVersion, campoLoaderVersion
             opciones = [{ id: preferida }, ...opciones]
         }
         for(const op of opciones){
-            const o = el('option', null, op.estable === false ? `${op.id} (${tInicio('inestable')})` : op.id)
+            const etiqueta = op.etiqueta ? tInicio('etiquetaVersion.' + op.etiqueta) : (op.estable === false ? tInicio('inestable') : null)
+            const o = el('option', null, etiqueta ? `${op.id} (${etiqueta})` : op.id)
             o.value = op.id
             select.append(o)
         }
@@ -791,15 +816,28 @@ function selectorVersiones({ loaders, version, loaderVersion, campoLoaderVersion
         if(!def.conVersion || !version.value){
             return
         }
-        const p = pedido
+        // Cada pedido tiene su número: una respuesta vieja (de otra versión de
+        // Minecraft) no pisa la lista de la versión elegida ahora.
+        const p = ++pedidoLoader
+        const mc = version.value
         llenar(loaderVersion, [], tInicio('cargandoVersiones'))
-        const lista = await def.versionesLoader(version.value)
-        if(p !== pedido){
-            return
+        try {
+            const lista = await def.versionesLoader(mc)
+            if(p !== pedidoLoader || mc !== version.value){
+                return
+            }
+            // Las listas vienen de la más nueva a la más vieja. Por defecto, la que marca
+            // el loader (la recomendada en Forge) o la estable más nueva.
+            const porDefecto = lista.find(o => o.predeterminada)?.id ?? lista.find(o => o.estable !== false)?.id
+            llenar(loaderVersion, lista, tInicio('sinVersiones'), preferidas.loaderVersion ?? porDefecto)
+        } catch(err) {
+            if(p === pedidoLoader){
+                llenar(loaderVersion, [], tInicio('sinVersiones'))
+                error.textContent = tInicio('errorVersiones')
+                error.hidden = false
+            }
+            throw err
         }
-        // Primero la estable más nueva.
-        lista.sort((a, b) => (b.estable === true) - (a.estable === true))
-        llenar(loaderVersion, lista, tInicio('sinVersiones'), preferidas.loaderVersion)
     }
 
     async function cargar(){
@@ -814,7 +852,8 @@ function selectorVersiones({ loaders, version, loaderVersion, campoLoaderVersion
                 return
             }
             llenar(version, lista, tInicio('sinVersiones'), preferidas.mc)
-            await cargarLoader()
+            // Si fallan los loaders, las versiones de Minecraft quedan igual.
+            await cargarLoader().catch(err => loggerInicio.warn('No se pudieron cargar los loaders.', err.message))
         } catch(err) {
             loggerInicio.warn('No se pudieron cargar las versiones.', err.message)
             if(p === pedido){
@@ -963,7 +1002,16 @@ document.getElementById('formEditar').addEventListener('submit', e => {
     }
     const cambiaVersion = v.mc !== inst.mc || v.loader !== inst.loader || v.loaderVersion !== inst.loaderVersion
     if(cambiaVersion){
-        confirmar(tInicio('cambiarVersionTitulo'), tInicio('cambiarVersionTexto'), tInicio('cambiarVersionSi'), guardar)
+        confirmar(tInicio('cambiarVersionTitulo'), tInicio('cambiarVersionTexto'), tInicio('cambiarVersionSi'), async () => {
+            try {
+                await Instancias.validarLoader(v)
+            } catch(err) {
+                error.textContent = err.displayable ?? err.message
+                error.hidden = false
+                return
+            }
+            guardar()
+        })
     } else {
         guardar()
     }
@@ -989,27 +1037,42 @@ seccionInstancia.querySelector('[data-accion="iconoQuitar"]').addEventListener('
     pintarInstancias()
 })
 
-// Mods
-const carpetaMods = () => pathInicio.join(Instancias.carpeta(instanciaAbierta), 'mods')
-let cargaMods = 0
+// Mods editables: los de una instancia propia y los "extra" que el jugador agrega a un servidor.
 
-async function cargarModsInstancia(){
-    const n = ++cargaMods
-    const cont = document.getElementById('instanciaMods')
-    const resumen = document.getElementById('modsResumen')
-    resumen.textContent = tInicio('cargando')
-    const mods = await ModsJar.listar(carpetaMods())
-    if(n !== cargaMods){
-        return
+/**
+ * Lista de .jar de una carpeta mods que se pueden activar, desactivar, borrar y
+ * agregar (botón o arrastrando). Con `excluir`, se ocultan los archivos que maneja
+ * la distribution (en los servidores).
+ *
+ * @param {{zona: HTMLElement, lista: HTMLElement, resumen: HTMLElement, soltar: HTMLElement,
+ *   botonCarpeta: HTMLElement, botonAgregar: HTMLElement, carpeta: () => string,
+ *   excluir?: () => Set<string>, textoVacio: string}} o
+ */
+function listaModsEditable(o){
+    let carga = 0
+
+    async function cargar(){
+        const n = ++carga
+        o.resumen.textContent = tInicio('cargando')
+        const excluir = o.excluir ? o.excluir() : new Set()
+        const mods = (await ModsJar.listar(o.carpeta()))
+            .filter(m => !excluir.has(pathInicio.normalize(m.ruta).replace(/\.disabled$/i, '').toLowerCase()))
+        if(n !== carga){
+            return
+        }
+        o.lista.replaceChildren()
+        const activos = mods.filter(m => m.activo).length
+        o.resumen.textContent = mods.length > 0 ? tInicio('modsResumen', { activos, total: mods.length }) : ''
+        if(mods.length === 0){
+            o.lista.append(vacio(o.textoVacio))
+            return
+        }
+        for(const m of mods){
+            o.lista.append(filaModEditable(m))
+        }
     }
-    cont.replaceChildren()
-    const activos = mods.filter(m => m.activo).length
-    resumen.textContent = mods.length > 0 ? tInicio('modsResumen', { activos, total: mods.length }) : ''
-    if(mods.length === 0){
-        cont.append(vacio(tInicio('modsVacio')))
-        return
-    }
-    for(const m of mods){
+
+    function filaModEditable(m){
         const fila = el('div', 'filaMod')
         fila.toggleAttribute('apagado', !m.activo)
         const interruptor = el('label', 'interruptor')
@@ -1025,7 +1088,7 @@ async function cargarModsInstancia(){
                 loggerInicio.error('No se pudo cambiar el mod.', err)
                 mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
             }
-            cargarModsInstancia()
+            cargar()
         })
         interruptor.append(chk, el('span', 'interruptorRiel'))
         const textos = el('div', 'modTextos')
@@ -1040,60 +1103,109 @@ async function cargarModsInstancia(){
                 if(!await aLaPapelera(m.ruta)){
                     mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
                 }
-                cargarModsInstancia()
+                cargar()
             })
         })
         fila.append(interruptor, textos, borrar)
-        cont.append(fila)
+        return fila
     }
-}
 
-async function agregarMods(rutas){
-    const jars = rutas.filter(r => /\.jar$/i.test(r))
-    if(jars.length === 0){
-        return
+    async function agregar(rutas){
+        const jars = rutas.filter(r => /\.jar$/i.test(r))
+        if(jars.length === 0){
+            return
+        }
+        try {
+            await ModsJar.agregar(o.carpeta(), jars)
+        } catch(err) {
+            loggerInicio.error('No se pudieron agregar los mods.', err)
+            mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
+        }
+        cargar()
     }
-    try {
-        await ModsJar.agregar(carpetaMods(), jars)
-    } catch(err) {
-        loggerInicio.error('No se pudieron agregar los mods.', err)
-        mostrarError(tInicio('modErrorTitulo'), tInicio('modErrorTexto'))
-    }
-    cargarModsInstancia()
-}
 
-seccionInstancia.querySelector('[data-accion="modsCarpeta"]').addEventListener('click', () => abrirCarpeta(carpetaMods()))
-seccionInstancia.querySelector('[data-accion="modsAgregar"]').addEventListener('click', async () => {
-    const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
-        title: tInicio('modsAgregar'),
-        properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Mods', extensions: ['jar'] }]
+    o.botonCarpeta.addEventListener('click', () => abrirCarpeta(o.carpeta()))
+    o.botonAgregar.addEventListener('click', async () => {
+        const res = await remote.dialog.showOpenDialog(remote.getCurrentWindow(), {
+            title: tInicio('modsAgregar'),
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'Mods', extensions: ['jar'] }]
+        })
+        if(!res.canceled){
+            agregar(res.filePaths)
+        }
     })
-    if(!res.canceled){
-        agregarMods(res.filePaths)
-    }
-})
 
-const pestanaMods = seccionInstancia.querySelector('.pestana[data-pestana="mods"]')
-const zonaSoltar = document.getElementById('zonaSoltar')
-let arrastres = 0
-pestanaMods.addEventListener('dragenter', e => {
-    e.preventDefault()
-    arrastres++
-    zonaSoltar.setAttribute('activa', '')
-})
-pestanaMods.addEventListener('dragleave', () => {
-    if(--arrastres <= 0){
+    let arrastres = 0
+    o.zona.addEventListener('dragenter', e => {
+        e.preventDefault()
+        arrastres++
+        o.soltar.setAttribute('activa', '')
+    })
+    o.zona.addEventListener('dragleave', () => {
+        if(--arrastres <= 0){
+            arrastres = 0
+            o.soltar.removeAttribute('activa')
+        }
+    })
+    o.zona.addEventListener('drop', e => {
+        e.preventDefault()
         arrastres = 0
-        zonaSoltar.removeAttribute('activa')
-    }
+        o.soltar.removeAttribute('activa')
+        const { webUtils } = require('electron')
+        agregar([...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean))
+    })
+
+    return { cargar, agregar }
+}
+
+const modsInstancia = listaModsEditable({
+    zona: seccionInstancia.querySelector('.pestana[data-pestana="mods"]'),
+    lista: document.getElementById('instanciaMods'),
+    resumen: document.getElementById('modsResumen'),
+    soltar: document.getElementById('zonaSoltar'),
+    botonCarpeta: seccionInstancia.querySelector('[data-accion="modsCarpeta"]'),
+    botonAgregar: seccionInstancia.querySelector('[data-accion="modsAgregar"]'),
+    carpeta: () => pathInicio.join(Instancias.carpeta(instanciaAbierta), 'mods'),
+    textoVacio: tInicio('modsVacio')
 })
-pestanaMods.addEventListener('drop', e => {
-    e.preventDefault()
-    arrastres = 0
-    zonaSoltar.removeAttribute('activa')
-    const { webUtils } = require('electron')
-    agregarMods([...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean))
+const cargarModsInstancia = () => modsInstancia.cargar()
+const agregarMods = rutas => modsInstancia.agregar(rutas)
+
+/**
+ * Archivos que trae la distribution del servidor (recursivo, en minúsculas): los
+ * mods extra del jugador son los .jar de su carpeta mods que no están acá.
+ */
+function archivosDeLaDistribution(serv){
+    const rutas = new Set()
+    const recorrer = mods => {
+        for(const m of mods){
+            try {
+                rutas.add(pathInicio.normalize(m.getPath()).toLowerCase())
+            } catch(_err) {
+                // Módulo sin ruta (no pasa con mods): se ignora.
+            }
+            recorrer(m.subModules)
+        }
+    }
+    recorrer(serv.modules)
+    return rutas
+}
+
+const seccionServidorMods = document.querySelector('.pestana[data-grupo="servidor"][data-pestana="mods"]')
+const modsExtraServidor = listaModsEditable({
+    zona: document.getElementById('bloqueModsExtra'),
+    lista: document.getElementById('servidorModsExtra'),
+    resumen: document.getElementById('extraResumen'),
+    soltar: document.getElementById('extraSoltar'),
+    botonCarpeta: seccionServidorMods.querySelector('[data-accion="extraCarpeta"]'),
+    botonAgregar: seccionServidorMods.querySelector('[data-accion="extraAgregar"]'),
+    carpeta: () => pathInicio.join(ConfigManager.getInstanceDirectory(), ConfigManager.getSelectedServer(), 'mods'),
+    excluir: () => {
+        const serv = distroInicio?.getServerById(ConfigManager.getSelectedServer())
+        return serv ? archivosDeLaDistribution(serv) : new Set()
+    },
+    textoVacio: tInicio('modsExtraVacio')
 })
 
 // Rendimiento
@@ -1213,7 +1325,7 @@ modalCrear.addEventListener('keydown', e => {
         cerrarCrear()
     }
 })
-formCrear.addEventListener('submit', e => {
+formCrear.addEventListener('submit', async e => {
     e.preventDefault()
     const nombre = document.getElementById('crearNombre').value.trim()
     const v = creador.valor()
@@ -1222,15 +1334,23 @@ formCrear.addEventListener('submit', e => {
         crearError.hidden = false
         return
     }
+    const boton = document.getElementById('crearConfirmar')
     try {
+        // Forge y NeoForge: que exista el instalador antes de crear nada.
+        boton.disabled = true
+        boton.textContent = tInicio('revisando')
+        await Instancias.validarLoader(v)
         const inst = Instancias.crear({ nombre, mc: v.mc, loader: v.loader, loaderVersion: v.loaderVersion })
         cerrarCrear()
         pintarInstancias()
         abrirInstancia(inst.id)
     } catch(err) {
         loggerInicio.error('No se pudo crear la instancia.', err)
-        crearError.textContent = err.message
+        crearError.textContent = err.displayable ?? err.message
         crearError.hidden = false
+    } finally {
+        boton.disabled = false
+        boton.textContent = tInicio('crear')
     }
 })
 

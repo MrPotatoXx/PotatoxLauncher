@@ -9,7 +9,7 @@
 Potatox Launcher sirve para dos cosas:
 
 1. **Jugar en los servidores del Potato.** Eliges el servidor y aprietas **Jugar**: el launcher instala Java, Minecraft, el loader y todos los mods y configuraciones, y los mantiene sincronizados con el servidor. Si el modpack cambia, se actualiza solo.
-2. **Crear tus propias instancias** para jugar solo o con quien quieras: **Vanilla** y **Fabric**. **Forge** y **NeoForge** llegan pronto.
+2. **Crear tus propias instancias** para jugar solo o con quien quieras: **Vanilla**, **Fabric**, **Forge** y **NeoForge**. Forge y NeoForge se instalan solos la primera vez que juegas (con el instalador oficial y el Java que pide esa versión).
 
 Basado en [Helios Launcher](https://github.com/dscalzi/HeliosLauncher) (MIT).
 
@@ -18,7 +18,7 @@ Basado en [Helios Launcher](https://github.com/dscalzi/HeliosLauncher) (MIT).
 ## Funciones
 
 * 🗂️ **Instancias en carpetas separadas.** Cada servidor y cada instancia tiene su propia carpeta, nunca dentro de `.minecraft`, así nada se mezcla ni se corrompe. Lo que es común (librerías, versiones, assets) se baja una sola vez.
-* 🧩 **Mods a tu manera.** En tus instancias ves cada mod con su nombre y versión, lo activas o desactivas con un interruptor, lo borras o agregas nuevos arrastrando los `.jar` a la ventana.
+* 🧩 **Mods a tu manera.** En tus instancias ves cada mod con su nombre y versión, lo activas o desactivas con un interruptor, lo borras o agregas nuevos arrastrando los `.jar` a la ventana. En los servidores ves los mods del servidor y puedes sumar tus propios mods de cliente (minimapas, shaders, rendimiento); el launcher no los toca al actualizar el modpack.
 * 📁 **Carpetas a un clic.** Mundos, resource packs, shaders, capturas, registros y configuración.
 * ⚙️ **RAM y Java por instancia.** Cada instancia tiene su memoria, su Java y sus argumentos. La RAM por defecto de las instancias nuevas se elige en Ajustes.
 * ✏️ **Editar y duplicar.** Cambia el nombre, el ícono, la versión o el loader (el launcher avisa si eso puede romper tus mundos) y duplica una instancia antes de experimentar.
@@ -79,7 +79,7 @@ Los servidores, las noticias y la presentación de cada servidor no están dentr
 | Archivo | Qué trae |
 | ------- | -------- |
 | `distribution.json` | Los servidores y sus mods, en el formato de Helios ([Nebula][nebula], ver [`docs/distro.md`](docs/distro.md)). El servidor puede entregar una lista distinta según quién la pida (por ejemplo, servidores de prueba solo para el admin). |
-| `noticias.json` | `{ "version": 1, "noticias": [ { "id", "fecha", "titulo", "resumen", "etiqueta", "imagen", "link", "servidor"? } ] }`. Con `servidor` (el id), la noticia sale también en la vista de ese servidor. |
+| `noticias.json` | `{ "version": 1, "noticias": [ { "id", "fecha", "titulo", "resumen", "etiqueta", "imagen", "link", "servidor"? } ] }`. Sin `servidor`, la noticia sale en Inicio y en la vista de todos los servidores; con `servidor` (el id), en Inicio y solo en la vista de ese servidor. Con la lista vacía, la sección no se muestra. |
 | `servidores-extra.json` | `{ "version": 1, "servidores": { "<id>": { … } } }` con los datos de presentación de cada servidor (abajo). Un servidor que no aparece usa valores por defecto. |
 
 El launcher pide `distribution.json` con la cabecera `X-Potatox-Cuenta` (el UUID de la cuenta activa, con guiones), para que el servidor pueda entregarle al admin también los servidores de prueba. Sin cuenta no se manda nada, y al cambiar de cuenta se vuelve a pedir.
@@ -90,7 +90,7 @@ El launcher no depende de que `mc.potatox.me` esté prendido:
 
 * Cada pedido espera como mucho 5 segundos; si no hay respuesta, sigue.
 * Guarda en la carpeta de datos del launcher (`cache-servidor/`) la última copia buena de `servidores-extra.json` y `noticias.json`, y en caché los banners, íconos e imágenes de noticias; `distribution.json` queda guardado al lado, como siempre en Helios. Sin respuesta usa esas copias; sin copias, el arte que viene en el launcher (`tarjeta-generica` y el fondo de Tierras Malditas).
-* Los servidores que no responden se muestran como **Apagado · sin conexión**. Inicio, Ajustes, Perfil y las instancias propias funcionan igual (Vanilla y Fabric se bajan de Mojang y de Fabric, no del servidor).
+* Los servidores que no responden se muestran como **Apagado · sin conexión**. Inicio, Ajustes, Perfil y las instancias propias funcionan igual (Vanilla, Fabric, Forge y NeoForge se bajan de Mojang y de cada loader, no del servidor).
 * Si nunca se bajó la lista de servidores y el servidor está apagado, se entra igual sin servidores; Ajustes oculta las pestañas Mods y Java del servidor.
 
 Para probarlo en desarrollo: `POTATOX_SERVIDOR=http://10.255.255.1/launcher/ npm start` (una dirección que no responde).
@@ -133,7 +133,7 @@ Tipos de panel:
 | ------ | ------ | ----------- |
 | `estado` | `titulo`? | En línea o apagado, jugadores, versión, dirección y MOTD. |
 | `jugadores` | `titulo`? | Cabeza y nombre de los conectados (la muestra que entrega el servidor). |
-| `noticias` | `titulo`?, `max`? (4), `url`? | Noticias con el formato de `noticias.json`: las de ese servidor, o las de `url` si se indica. Se oculta si no hay. |
+| `noticias` | `titulo`?, `max`? (4), `url`? | Noticias con el formato de `noticias.json`: las generales y las de ese servidor, o las de `url` si se indica. Se oculta si no hay. |
 | `link` | `titulo`, `url`, `texto`?, `boton`? | Tarjeta con un botón que abre la URL en el navegador. |
 | `texto` | `titulo`?, `texto`, `ancho`? (`"completo"`) | Texto libre (respeta los saltos de línea). |
 | `tierras` | `url`? | El bloque de Tierras Malditas: tema oscuro, voz de Aldric, Prueba, fragmentos de la corona, Luna de Sangre, conectados y Crónicas (de `reino.json`). |
@@ -146,7 +146,7 @@ Un tipo que el launcher no conoce se ignora, así se pueden agregar tipos nuevos
 | --- | ----- |
 | URL del servidor, timeouts y caché sin conexión | `app/assets/js/servidor.js` (la distribution en `distromanager.js`) |
 | Vista principal, paneles y edición de instancias | `app/landing.ejs`, `app/assets/js/scripts/inicio.js` |
-| Instancias propias y loaders | `app/assets/js/instancias.js` (descargas en `instanciasworker.js`, mods en `modsjar.js`) |
+| Instancias propias y loaders | `app/assets/js/instancias.js` (descargas en `instanciasworker.js`, mods en `modsjar.js`, instalador de Forge y NeoForge en `instaladorforge.js`, que también usa Tierras Malditas) |
 | Bloque de Tierras Malditas | `app/assets/js/scripts/reino.js`, `ambiente.js` y `app/assets/css/reino.css` |
 | Actualizaciones obligatorias y opcionales | `app/assets/js/scripts/actualizacion.js` (eventos de electron-updater en `index.js` y `uicore.js`) |
 | ID de la app de Microsoft | `app/assets/js/ipcconstants.js` → `AZURE_CLIENT_ID` |
