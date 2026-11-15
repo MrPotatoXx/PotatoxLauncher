@@ -186,13 +186,24 @@ function tieneTierras(id){
  * El banner sale de servidores-extra.json; sin banner, la tarjeta genérica.
  * (Un servidor con el panel "tierras" y sin banner usa el arte oscuro local.)
  */
+const bannersElegidos = {}
+
 function arteServidor(id){
     const extra = extrasServidores[id]
+    // Con varios banners, uno al azar que se mantiene toda la sesión.
+    const lista = Array.isArray(extra?.banners) ? extra.banners.filter(b => typeof b === 'string' && b) : []
+    if(lista.length > 0){
+        if(!lista.includes(bannersElegidos[id])){
+            bannersElegidos[id] = lista[Math.floor(Math.random() * lista.length)]
+        }
+        return bannersElegidos[id]
+    }
     if(extra?.banner){
         return extra.banner
     }
+    // Sin conexión (o sin banner), el panel "tierras" usa el arte oscuro que viene en el launcher.
     if(tieneTierras(id)){
-        return `assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg`
+        return 'assets/images/backgrounds/0.jpg'
     }
     return `${IMG}/tarjeta-generica.jpg`
 }

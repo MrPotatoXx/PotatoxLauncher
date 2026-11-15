@@ -1,44 +1,41 @@
-<p align="center"><img src="./app/assets/images/SealCircle.png" width="150px" height="150px" alt="Potatox Launcher"></p>
+<p align="center"><img src="./app/assets/images/potato/icono.png" width="150px" height="150px" alt="Potatox Launcher"></p>
 
 <h1 align="center">Potatox Launcher</h1>
 
-<p align="center">Launcher de Minecraft para los servidores de Potatox. Instala y mantiene actualizados los modpacks automáticamente.</p>
+<p align="center">El launcher de Minecraft del Potato para sus amigos: sus servidores y tus propias instancias, en un solo lugar.</p>
 
 ---
 
-Potatox Launcher es el launcher oficial de los servidores de Potatox. Inicias sesión con tu cuenta de Microsoft, eliges el servidor y aprietas **Jugar**: el launcher instala Java, Minecraft, Forge y todos los mods y configuraciones del modpack, y los mantiene sincronizados con el servidor. Si el modpack cambia, el launcher lo actualiza solo; no hay que bajar zips ni copiar carpetas.
+Potatox Launcher sirve para dos cosas:
+
+1. **Jugar en los servidores del Potato.** Eliges el servidor y aprietas **Jugar**: el launcher instala Java, Minecraft, el loader y todos los mods y configuraciones, y los mantiene sincronizados con el servidor. Si el modpack cambia, se actualiza solo.
+2. **Crear tus propias instancias** para jugar solo o con quien quieras: **Vanilla** y **Fabric**. **Forge** y **NeoForge** llegan pronto.
 
 Basado en [Helios Launcher](https://github.com/dscalzi/HeliosLauncher) (MIT).
 
-![Pantalla principal](docs/images/principal.jpg)
+![Inicio](docs/images/inicio.jpg)
 
-> **Estado:** en desarrollo. Todavía no hay instaladores publicados: el inicio de sesión con Microsoft espera la aprobación de Mojang para el ID de la aplicación.
+## Funciones
 
-## Servidores
+* 🗂️ **Instancias en carpetas separadas.** Cada servidor y cada instancia tiene su propia carpeta, nunca dentro de `.minecraft`, así nada se mezcla ni se corrompe. Lo que es común (librerías, versiones, assets) se baja una sola vez.
+* 🧩 **Mods a tu manera.** En tus instancias ves cada mod con su nombre y versión, lo activas o desactivas con un interruptor, lo borras o agregas nuevos arrastrando los `.jar` a la ventana.
+* 📁 **Carpetas a un clic.** Mundos, resource packs, shaders, capturas, registros y configuración.
+* ⚙️ **RAM y Java por instancia.** Cada instancia tiene su memoria, su Java y sus argumentos. La RAM por defecto de las instancias nuevas se elige en Ajustes.
+* ✏️ **Editar y duplicar.** Cambia el nombre, el ícono, la versión o el loader (el launcher avisa si eso puede romper tus mundos) y duplica una instancia antes de experimentar.
+* ☕ **Java automático.** Si falta la versión de Java que pide Minecraft o el servidor, el launcher la instala.
+* 🔒 **Cuentas de Microsoft.** Varias cuentas, inicio de sesión en la página oficial de Microsoft; el launcher no guarda tu contraseña. Tu perfil muestra la skin completa en 3D.
+* 📰 **Noticias y estado.** Noticias del Potato, estado de cada servidor (en línea, jugadores conectados) y de los servicios de Mojang (login, sesiones y skins).
+* 🌐 **Idioma.** Español o inglés.
 
-| Servidor | Versión | Loader | Java |
-| -------- | ------- | ------ | ---- |
-| **Tierras Malditas** (`mc.potatox.me`) | 1.20.1 | Forge 47.4.10 | 17 |
-
-Los servidores tienen whitelist: son para la comunidad de Potatox. Más info en [mc.potatox.me](https://mc.potatox.me).
-
-## Qué hace
-
-* 🔒 **Cuentas de Microsoft.** Puedes agregar varias y cambiar entre ellas. Inicias sesión en la página oficial de Microsoft; el launcher no guarda tu contraseña.
-* ☕ **Java automático.** Si no tienes la versión de Java que pide el modpack, el launcher la instala por ti.
-* 📦 **Modpack siempre al día.** Compara los archivos con el servidor y baja solo lo que cambió. Los archivos dañados o incorrectos se vuelven a bajar antes de jugar.
-* 🗺️ **Varios modpacks.** Cada servidor tiene su propia carpeta de instancia (mods, configs y mundos separados).
-* 🧩 **Mods opcionales y propios.** Activa o desactiva los opcionales del pack y agrega shaders o mods tuyos desde los ajustes.
-* 👥 **Estado del servidor.** Muestra los jugadores conectados del servidor elegido.
-* 🇪🇸 **En español.**
-
-| ![Bienvenida](docs/images/bienvenida.jpg) | ![Pantalla de carga](docs/images/carga.jpg) | ![Ajustes de mods](docs/images/mods.jpg) |
-| :---: | :---: | :---: |
-| Bienvenida | Pantalla de carga | Mods del modpack |
+| ![Vista de Tierras Malditas](docs/images/tierras.jpg) | ![Crear instancia](docs/images/crear.jpg) |
+| :---: | :---: |
+| Vista de un servidor (Tierras Malditas) | Crear instancia |
+| ![Pestaña Mods](docs/images/mods.jpg) | ![Perfil](docs/images/perfil.jpg) |
+| Mods de una instancia | Perfil |
 
 ## Instalar
 
-Cuando haya versiones publicadas, estarán en [GitHub Releases](https://github.com/MrPotatoXx/PotatoxLauncher/releases).
+Las versiones están en [GitHub Releases](https://github.com/MrPotatoXx/PotatoxLauncher/releases) y el launcher se actualiza solo.
 
 | Plataforma | Archivo |
 | ---------- | ------- |
@@ -58,7 +55,7 @@ Abre la pestaña **Console**. Para guardar lo que muestra, haz clic derecho en l
 
 No pegues nada en la consola si no sabes exactamente qué hace: puede exponer información de tu cuenta.
 
-## Desarrollo
+## Para desarrolladores
 
 **Requisitos:** [Node.js][nodejs] 22.
 
@@ -75,6 +72,52 @@ Con npm 11 o superior, `npm ci` puede bloquear el script que descarga Electron. 
 > node node_modules/electron/install.js
 ```
 
+### Lo que viene del servidor
+
+Los servidores, las noticias y la presentación de cada servidor no están dentro del launcher: se leen de `https://mc.potatox.me/launcher/` cada vez que se abre. Se cambian en el servidor **sin publicar una versión nueva**.
+
+| Archivo | Qué trae |
+| ------- | -------- |
+| `distribution.json` | Los servidores y sus mods, en el formato de Helios ([Nebula][nebula], ver [`docs/distro.md`](docs/distro.md)). El servidor puede entregar una lista distinta según quién la pida (por ejemplo, servidores de prueba solo para el admin). |
+| `noticias.json` | `{ "version": 1, "noticias": [ { "id", "fecha", "titulo", "resumen", "etiqueta", "imagen", "link", "servidor"? } ] }`. Con `servidor` (el id), la noticia sale también en la vista de ese servidor. |
+| `servidores-extra.json` | `{ "version": 1, "servidores": { "<id>": { … } } }` con los datos de presentación de cada servidor (abajo). Un servidor que no aparece usa valores por defecto. |
+
+Campos de cada servidor en `servidores-extra.json`:
+
+| Campo | Qué hace |
+| ----- | -------- |
+| `loader` | `vanilla`, `fabric`, `forge` o `neoforge`, para el chip de la tarjeta. Si falta, se deduce de los módulos de la distribución. |
+| `banner` / `banners` | Imagen de la tarjeta y de la vista (1280×400). Con `banners` se elige una al azar por sesión; si no, `banner`; si tampoco, una tarjeta genérica. |
+| `colorAcento` | Color del borde de la tarjeta. |
+| `estado` | `abierto` (se le pregunta al servidor si está en línea), `pruebas`, `proximamente` o `cerrado`. |
+| `paneles` | Lo que muestra la vista del servidor, en orden (abajo). |
+
+Tipos de panel:
+
+| `tipo` | Campos | Qué muestra |
+| ------ | ------ | ----------- |
+| `estado` | `titulo`? | En línea o apagado, jugadores, versión, dirección y MOTD. |
+| `jugadores` | `titulo`? | Cabeza y nombre de los conectados (la muestra que entrega el servidor). |
+| `noticias` | `titulo`?, `max`? (4), `url`? | Noticias con el formato de `noticias.json`: las de ese servidor, o las de `url` si se indica. Se oculta si no hay. |
+| `link` | `titulo`, `url`, `texto`?, `boton`? | Tarjeta con un botón que abre la URL en el navegador. |
+| `texto` | `titulo`?, `texto`, `ancho`? (`"completo"`) | Texto libre (respeta los saltos de línea). |
+| `tierras` | `url`? | El bloque de Tierras Malditas: tema oscuro, voz de Aldric, Prueba, fragmentos de la corona, Luna de Sangre, conectados y Crónicas (de `reino.json`). |
+
+Un tipo que el launcher no conoce se ignora, así se pueden agregar tipos nuevos sin romper versiones viejas. Sin `paneles`, la vista muestra `estado`, `jugadores` y `noticias`.
+
+### Dónde está cada cosa
+
+| Qué | Dónde |
+| --- | ----- |
+| URLs del servidor | `distromanager.js` (`REMOTE_DISTRO_URL`) y `scripts/inicio.js` (`URL_NOTICIAS`, `URL_EXTRA`) en `app/assets/js/` |
+| Vista principal, paneles y edición de instancias | `app/landing.ejs`, `app/assets/js/scripts/inicio.js` |
+| Instancias propias y loaders | `app/assets/js/instancias.js` (descargas en `instanciasworker.js`, mods en `modsjar.js`) |
+| Bloque de Tierras Malditas | `app/assets/js/scripts/reino.js`, `ambiente.js` y `app/assets/css/reino.css` |
+| ID de la app de Microsoft | `app/assets/js/ipcconstants.js` → `AZURE_CLIENT_ID` |
+| Textos | `app/assets/lang/es_ES.toml` y `en_US.toml`; título y bienvenida en `_custom.toml` |
+| Estilos | `app/assets/css/potato.css` (sobre `launcher.css` de Helios) |
+| Arte, mascotas e ícono | `app/assets/images/potato/` y `build/icon.png`, `icon.ico`, `icon.icns` |
+
 ### Instaladores
 
 | Plataforma  | Comando              |
@@ -83,20 +126,7 @@ Con npm 11 o superior, `npm ci` puede bloquear el script que descarga Electron. 
 | macOS       | `npm run dist:mac`   |
 | Linux x64   | `npm run dist:linux` |
 
-El resultado queda en `dist/`. Los builds de macOS no suelen funcionar desde Windows o Linux, ni al revés.
-
-### Dónde está cada cosa
-
-| Qué | Dónde |
-| --- | ----- |
-| URL de la distribución (lista de servidores y mods) | `app/assets/js/distromanager.js` → `REMOTE_DISTRO_URL` |
-| ID de la app de Microsoft | `app/assets/js/ipcconstants.js` → `AZURE_CLIENT_ID` |
-| Textos (español) | `app/assets/lang/es_ES.toml`, título y bienvenida en `_custom.toml` |
-| Logo, fondos y pantalla de carga | `app/assets/images/` |
-| Ícono de la app | `build/icon.png` y `build/icon.ico` |
-| Estilos | `app/assets/css/launcher.css` |
-
-La distribución (`distribution.json`) se genera en el servidor con [Nebula][nebula]. El formato está en [`docs/distro.md`](docs/distro.md) y la configuración de Microsoft en [`docs/MicrosoftAuth.md`](docs/MicrosoftAuth.md).
+El resultado queda en `dist/`. Los builds de macOS no suelen funcionar desde Windows o Linux, ni al revés. La configuración de Microsoft está en [`docs/MicrosoftAuth.md`](docs/MicrosoftAuth.md).
 
 ## Créditos
 

@@ -69,8 +69,6 @@ async function showMainUI(data){
     refreshServerStatus()
     iniciarInicio(data)
     setTimeout(() => {
-        // El arte de Tierras Malditas va en el héroe de su vista (parallax en ambiente.js).
-        document.getElementById('fondoReino').style.backgroundImage = `url('assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg')`
         $('#main').show()
 
         const isLoggedIn = Object.keys(ConfigManager.getAuthAccounts()).length > 0
